@@ -47,6 +47,11 @@ spec:
         env:
         - name: LANGFLOW_DATABASE_URL
           value: "sqlite:////data/langflow.db"
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-secret
+              key: OPENAI_API_KEY
         resources:
           requests: { cpu: "200m", memory: "512Mi" }
           limits:   { cpu: "1",    memory: "1Gi" }
