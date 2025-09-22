@@ -49,3 +49,7 @@ done
 kubectl --kubeconfig "$KUBECONFIG" -n chatbot create secret generic starai-db-secret \
   --from-literal=MONGO_URI="$MONGO_URI" \
   --dry-run=client -o yaml | kubectl --kubeconfig "$KUBECONFIG" apply -f -
+
+kubectl --kubeconfig "$KUBECONFIG" -n chatbot create secret generic openai-secret \
+  --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
+  --dry-run=client -o yaml | kubectl --kubeconfig "$KUBECONFIG" apply -f -
