@@ -14,7 +14,6 @@ spec:
         app: chatbot
     spec:
       containers:
-      # --- Container 1: FastAPI gateway (public) ---
       - name: gateway
         image: 879381248241.dkr.ecr.us-east-1.amazonaws.com/starai-chatbot:latest
         imagePullPolicy: IfNotPresent
@@ -25,7 +24,7 @@ spec:
         - configMapRef:
             name: chatbot-config
         - secretRef:
-            name: mongo-credentials   # contains MONGO_URI from Conjur
+            name: mongo-credentials
         readinessProbe:
           httpGet: { path: /health, port: http }
           initialDelaySeconds: 10
@@ -38,7 +37,6 @@ spec:
           requests: { cpu: "200m", memory: "256Mi" }
           limits:   { cpu: "1",    memory: "1Gi" }
 
-      # --- Container 2: Langflow 1.2.0 (internal) ---
       - name: langflow
         image: langflowai/langflow:1.2.0
         imagePullPolicy: IfNotPresent
@@ -48,13 +46,15 @@ spec:
           name: langflow
         env:
         - name: LANGFLOW_DATABASE_URL
-          value: "sqlite:///./langflow.db"
-        - name: LANGFLOW_DATABASE_URL
           value: "sqlite:////data/langflow.db"
-        volumes:
-        - name: langflow-data
-          persistentVolumeClaim:
-            claimName: langflow-pvc
         resources:
           requests: { cpu: "200m", memory: "512Mi" }
           limits:   { cpu: "1",    memory: "1Gi" }
+        volumeMounts:
+        - name: langflow-data
+          mountPath: /data
+
+      volumes:
+      - name: langflow-data
+        persistentVolumeClaim:
+          claimName: langflow-pvc
