@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chatbot-config
+  namespace: chatbot
+data:
+  # Langflow is sidecar on 127.0.0.1:7860
+  LANGFLOW_URL: "http://127.0.0.1:7860"
+  FLOW_ID: "REPLACE_WITH_YOUR_FLOW_ID"
+  MONGO_DB: "stardb"
+  MONGO_COLLECTION: "services"
