@@ -32,6 +32,7 @@ fi
 
 # Apply manifests (namespace -> pvc -> config -> deployment -> service -> ingress)
 kubectl apply -f manifests/namespace.yaml
+kubectl apply -f manifests/storageclass-efs.yaml
 kubectl -n chatbot apply -f manifests/pvc.yaml
 kubectl -n chatbot apply -f manifests/configmap.yaml
 kubectl -n chatbot apply -f manifests/deployment.yaml
