@@ -1,205 +1,196 @@
 pipeline {
   agent {
     kubernetes {
-      label 'kaniko-kubectl-conjur'
-      defaultContainer 'jnlp'
-      yaml """
+      defaultContainer 'kaniko'
+      yaml '''\
 apiVersion: v1
 kind: Pod
 metadata:
-  labels:
-    app: kaniko-kubectl-conjur
+  name: kaniko
 spec:
   serviceAccountName: jenkins
   containers:
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:v1.23.2
-    tty: true
-    command: ["/busybox/cat"]
-    args: ["/dev/null"]
-    volumeMounts:
-    - { name: workspace, mountPath: /workspace }
   - name: kubectl
-    image: bitnami/kubectl:1.29
-    command: ["sh","-c","sleep 86400"]
+    image: arunrana1214/debian-k8s-awsctl:latest
+    command: ["/bin/cat"]
+    tty: true
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
+    command: ["/busybox/sh"]
+    tty: true
     volumeMounts:
-    - { name: workspace, mountPath: /workspace }
-  - name: aws
-    image: amazon/aws-cli:2.17.0
-    command: ["sh","-c","sleep 86400"]
-    volumeMounts:
-    - { name: workspace, mountPath: /workspace }
-  - name: tools
-    image: alpine:3.20
-    command: ["sh","-c","apk add --no-cache curl jq python3 && sleep 86400"]
-    volumeMounts:
-    - { name: workspace, mountPath: /workspace }
+    - name: kaniko-secret
+      mountPath: /kaniko/.docker
   volumes:
-  - name: workspace
-    emptyDir: {}
-"""
+  - name: kaniko-secret
+    secret:
+      secretName: regcred
+      items:
+      - key: .dockerconfigjson
+        path: config.json
+'''
     }
   }
 
   environment {
-    # ===== Account/Region targets =====
-    AWS_ACCOUNT_B   = "ACCOUNT_B"
-    AWS_REGION_B    = "REGION_B"
-    ECR_REPO        = "YOUR_ECR_REPO"
-    IMAGE           = "${AWS_ACCOUNT_B}.dkr.ecr.${AWS_REGION_B}.amazonaws.com/${ECR_REPO}"
-    TAG             = "build-${env.BUILD_NUMBER}"
-    IMAGE_FULL      = "${IMAGE}:${TAG}"
+    REPO_DIR           = 'StarAI-Chatbot'
 
-    K8S_NAMESPACE   = "chatbot"
-    EKS_CLUSTER_B   = "YOUR_EKS_CLUSTER_IN_ACCOUNT_B"
-    PUBLIC_DOMAIN   = "your-domain.example.com"
-    ALB_ACM_ARN     = "arn:aws:acm:REGION_B:ACCOUNT_B:certificate/REPLACE_ME"
-    FLOW_ID         = "REPLACE_WITH_YOUR_FLOW_ID"
+    // ---- AWS Account(EKS/ECR) ----
+    EKS_CLUSTER_NAME_B = 'starai-eks'
+    EKS_REGION_B       = 'us-east-1'
+    ECR_ACCOUNT        = '879381248241'
+    ECR_REGION         = 'us-east-1'
+    ECR_REPO           = 'starai-chatbot'
+    ECR_IMAGE          = "${ECR_ACCOUNT}.dkr.ecr.${ECR_REGION}.amazonaws.com/${ECR_REPO}:latest"
 
-    # ===== Conjur config =====
-    CONJUR_URL          = "https://YOUR_TENANT.secretsmgr.cyberark.cloud"
-    CONJUR_ACCOUNT      = "conjur"
-    CONJUR_AUTHN_JWT_ID = "jenkins"  // your authn-jwt service id
+    // Optional DockerHub mirror (set DOCKERHUB_IMAGE empty to skip)
+    DOCKERHUB_IMAGE    = 'arunrana1214/starai-chatbot:latest'
 
-    # Conjur variable IDs for AWS (Account B) dynamic creds
-    AWS_ACCESS_KEY_ID_VAR     = "data/aws/account-b/access_key_id"
-    AWS_SECRET_ACCESS_KEY_VAR = "data/aws/account-b/secret_access_key"
-    AWS_SESSION_TOKEN_VAR     = "data/aws/account-b/session_token"
+    // Ingress
+    PUBLIC_DOMAIN      = 'staraichat.sgcybersec.com'
+    ALB_ACM_ARN        = 'arn:aws:acm:us-east-1:879381248241:certificate/35b69081-e4df-4f8f-b51b-d7f5746a0d97'
 
-    # Conjur variable IDs for Mongo connectivity
-    MONGO_HOST_VAR     = "data/mongo/host"
-    MONGO_USERNAME_VAR = "data/mongo/username"
-    MONGO_PASSWORD_VAR = "data/mongo/password"
+    // Langflow Flow ID (or override via parameter)
+    FLOW_ID            = 'REPLACE_WITH_YOUR_FLOW_ID'
   }
 
+  options { ansiColor('xterm') }
+
   parameters {
+    string(name: 'GIT_REPO', defaultValue: 'Arun-Demos/StarAI-Chatbot', description: 'GitHub org/repo')
+    string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'Branch to build')
     string(name: 'FLOW_ID_PARAM', defaultValue: '', description: 'Override FLOW_ID (optional)')
     string(name: 'PUBLIC_DOMAIN_PARAM', defaultValue: '', description: 'Override domain (optional)')
   }
 
   stages {
-    stage('Checkout') {
-      steps { checkout scm }
-    }
 
-    stage('Fetch secrets from Conjur') {
+    stage('Clone GitHub Repo') {
       steps {
-        container('tools') {
-          sh """
-            set -e
-            cp jenkins/conjur_helpers.sh /tmp/conjur_helpers.sh
-            chmod +x /tmp/conjur_helpers.sh
-            . /tmp/conjur_helpers.sh
-
-            # Export required env (already set in pipeline env)
-            export CONJUR_URL CONJUR_ACCOUNT CONJUR_AUTHN_JWT_ID
-            export AWS_ACCESS_KEY_ID_VAR AWS_SECRET_ACCESS_KEY_VAR AWS_SESSION_TOKEN_VAR
-            export MONGO_HOST_VAR MONGO_USERNAME_VAR MONGO_PASSWORD_VAR
-
-            # Fetch and export AWS_* + MONGO_URI
-            fetch_all_from_conjur
-
-            # Write MONGO_URI to a temp file for later
-            echo "$MONGO_URI" > /workspace/MONGO_URI.txt
-          """
+        container('kubectl') {
+          withCredentials([
+            conjurSecretCredential(credentialsId: 'github-username', variable: 'GIT_USER'),
+            conjurSecretCredential(credentialsId: 'github-token',    variable: 'GIT_TOKEN')
+          ]) {
+            sh '''
+              set -euo pipefail
+              rm -rf "${REPO_DIR}"
+              git clone -b "${GIT_BRANCH}" "https://${GIT_USER}:${GIT_TOKEN}@github.com/${GIT_REPO}.git" "${REPO_DIR}"
+            '''
+          }
         }
       }
     }
 
-    stage('Build & Push (Kaniko → ECR in Account B)') {
+    stage('Fetch AWS Dynamic Secret') {
       steps {
-        container('aws') {
-          sh """
-            set -e
-            # Set AWS env from Conjur (exported by previous stage via /workspace)
-            export AWS_ACCESS_KEY_ID="$(cat /proc/1/environ | tr '\\0' '\\n' | grep '^AWS_ACCESS_KEY_ID=' | cut -d= -f2-)"
-            export AWS_SECRET_ACCESS_KEY="$(cat /proc/1/environ | tr '\\0' '\\n' | grep '^AWS_SECRET_ACCESS_KEY=' | cut -d= -f2-)"
-            export AWS_SESSION_TOKEN="$(cat /proc/1/environ | tr '\\0' '\\n' | grep '^AWS_SESSION_TOKEN=' | cut -d= -f2-)"
-            # login to ECR in Account B
-            aws ecr get-login-password --region ${AWS_REGION_B} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_B}.dkr.ecr.${AWS_REGION_B}.amazonaws.com
-          """
+        container('kubectl') {
+          withCredentials([
+            conjurSecretCredential(credentialsId: 'data-dynamic-Starai', variable: 'AWS_DYNAMIC_SECRET')
+          ]) {
+            script {
+              def creds = readJSON text: AWS_DYNAMIC_SECRET
+              env.AWS_ACCESS_KEY_ID     = creds.data.access_key_id
+              env.AWS_SECRET_ACCESS_KEY = creds.data.secret_access_key
+              env.AWS_SESSION_TOKEN     = creds.data.session_token
+              env.AWS_DEFAULT_REGION    = env.ECR_REGION
+            }
+            sh 'aws sts get-caller-identity'
+          }
         }
+      }
+    }
+
+    stage('Compute Image Tag') {
+      steps {
+        container('kubectl') {
+          dir("${env.REPO_DIR}") {
+            script {
+              def sha = sh(returnStdout: true, script: "git rev-parse --short=12 HEAD").trim()
+              def ts  = sh(returnStdout: true, script: "date -u +%Y%m%d%H%M%S").trim()
+              env.IMG_TAG          = "${env.BUILD_NUMBER}-${ts}-${sha}"
+              env.ECR_IMAGE_TAGGED = "${env.ECR_IMAGE}".replace(':latest', ":${env.IMG_TAG}")
+              env.DH_IMAGE_TAGGED  = "${env.DOCKERHUB_IMAGE}".replace(':latest', ":${env.IMG_TAG}")
+              echo "[INFO] Using image tag: ${env.IMG_TAG}"
+            }
+          }
+        }
+      }
+    }
+
+    stage('Kaniko Build & Push (DockerHub + ECR)') {
+      steps {
         container('kaniko') {
-          sh """
-            /kaniko/executor \
-              --context=/workspace/app \
-              --dockerfile=/workspace/app/Dockerfile \
-              --destination=${IMAGE_FULL} \
-              --snapshotMode=redo \
-              --reproducible \
-              --cache=true \
-              --cache-ttl=24h
-          """
+          dir("${env.REPO_DIR}") {
+            script {
+              def dests = [
+                "--destination=${env.ECR_IMAGE_TAGGED}",
+                "--destination=${env.ECR_IMAGE}"
+              ]
+              if (env.DOCKERHUB_IMAGE?.trim()) {
+                dests << "--destination=${env.DH_IMAGE_TAGGED}"
+                dests << "--destination=${env.DOCKERHUB_IMAGE}"
+              }
+              sh """
+                echo "[INFO] Building and pushing images..."
+                /kaniko/executor \
+                  --dockerfile=Dockerfile \
+                  --context=. \
+                  ${dests.join(' ')}
+              """
+            }
+          }
         }
       }
     }
 
-    stage('Render manifests for Account B') {
-      steps {
-        container('tools') {
-          sh """
-            set -e
-            # Image
-            sed -i 's#ACCOUNT_B.dkr.ecr.REGION_B.amazonaws.com/YOUR_ECR_REPO:latest#${IMAGE_FULL}#g' k8s/app-langflow/deployment.yaml
-            # Flow ID
-            if [ -n "${params.FLOW_ID_PARAM}" ]; then FLOW="${params.FLOW_ID_PARAM}"; else FLOW="${FLOW_ID}"; fi
-            sed -i 's#FLOW_ID: "REPLACE_WITH_YOUR_FLOW_ID"#FLOW_ID: "'"\${FLOW}"'"#g' k8s/app-langflow/configmap.yaml
-            # Domain + ACM
-            DOM="${PUBLIC_DOMAIN}"; [ -n "${params.PUBLIC_DOMAIN_PARAM}" ] && DOM="${params.PUBLIC_DOMAIN_PARAM}"
-            sed -i 's#your-domain.example.com#'"\${DOM}"'#g' k8s/ingress/alb-ingress.yaml
-            sed -i 's#ALB_ACM_ARN_REPLACE#'"\${ALB_ACM_ARN}"'#g' k8s/ingress/alb-ingress.yaml
-          """
-        }
-      }
-    }
-
-    stage('Update kubeconfig (Account B)') {
-      steps {
-        container('aws') {
-          sh """
-            set -e
-            export AWS_ACCESS_KEY_ID="$(cat /proc/1/environ | tr '\\0' '\\n' | grep '^AWS_ACCESS_KEY_ID=' | cut -d= -f2-)"
-            export AWS_SECRET_ACCESS_KEY="$(cat /proc/1/environ | tr '\\0' '\\n' | grep '^AWS_SECRET_ACCESS_KEY=' | cut -d= -f2-)"
-            export AWS_SESSION_TOKEN="$(cat /proc/1/environ | tr '\\0' '\\n' | grep '^AWS_SESSION_TOKEN=' | cut -d= -f2-)"
-            aws eks update-kubeconfig --name ${EKS_CLUSTER_B} --region ${AWS_REGION_B}
-          """
-        }
-      }
-    }
-
-    stage('Create/Update K8s Secret from Conjur (Mongo)') {
+    stage('Render & Apply DB Secret from Conjur') {
       steps {
         container('kubectl') {
-          sh """
-            set -e
-            MONGO_URI="$(cat /workspace/MONGO_URI.txt)"
-            kubectl -n ${K8S_NAMESPACE} create secret generic mongo-credentials \
-              --from-literal=MONGO_URI="$MONGO_URI" \
-              --dry-run=client -o yaml | kubectl apply -f -
-          """
+          withCredentials([
+            conjurSecretCredential(credentialsId: 'MongoDB-Appuser',        variable: 'MONGO_USERNAME'),
+            conjurSecretCredential(credentialsId: 'mongo-app-pass',         variable: 'MONGO_PASSWORD'),
+            conjurSecretCredential(credentialsId: 'MongoDB-StarAI-Address', variable: 'MONGO_HOST')
+          ]) {
+            dir("${env.REPO_DIR}") {
+              sh 'bash -lc "chmod +x ci/apply_db_secret.sh && ./ci/apply_db_secret.sh"'
+              script { env.KUBECONFIG = "${env.WORKSPACE}/${env.REPO_DIR}/.kubeconfig" }
+            }
+          }
         }
       }
     }
 
-    stage('Deploy to EKS (Account B)') {
+    stage('Deploy to EKS') {
       steps {
         container('kubectl') {
-          sh """
-            set -e
-            kubectl apply -f k8s/namespace.yaml
-            kubectl -n ${K8S_NAMESPACE} apply -f k8s/app-langflow/configmap.yaml
-            kubectl -n ${K8S_NAMESPACE} apply -f k8s/app-langflow/deployment.yaml
-            kubectl -n ${K8S_NAMESPACE} apply -f k8s/app-langflow/service.yaml
-            kubectl -n ${K8S_NAMESPACE} apply -f k8s/ingress/alb-ingress.yaml
-
-            kubectl -n ${K8S_NAMESPACE} rollout status deploy/chatbot --timeout=180s
-          """
+          dir("${env.REPO_DIR}") {
+            script {
+              if (params.FLOW_ID_PARAM?.trim()) { env.FLOW_ID = params.FLOW_ID_PARAM }
+              if (params.PUBLIC_DOMAIN_PARAM?.trim()) { env.PUBLIC_DOMAIN = params.PUBLIC_DOMAIN_PARAM }
+            }
+            withEnv([
+              "EKS_CLUSTER_NAME_B=${env.EKS_CLUSTER_NAME_B}",
+              "EKS_REGION_B=${env.EKS_REGION_B}",
+              "ECR_IMAGE=${env.ECR_IMAGE}",
+              "ECR_IMAGE_TAGGED=${env.ECR_IMAGE_TAGGED}",
+              "PUBLIC_DOMAIN=${env.PUBLIC_DOMAIN}",
+              "ALB_ACM_ARN=${env.ALB_ACM_ARN}",
+              "FLOW_ID=${env.FLOW_ID}"
+            ]) {
+              sh 'bash -lc "chmod +x ci/deploy.sh && ./ci/deploy.sh"'
+            }
+          }
         }
       }
     }
   }
 
   post {
-    always { echo "Build ${env.BUILD_NUMBER} complete" }
+    always {
+      container('kubectl') {
+        sh 'rm -rf "${REPO_DIR}" || true'
+      }
+    }
   }
 }
