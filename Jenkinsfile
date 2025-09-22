@@ -140,8 +140,8 @@ spec:
       steps {
         container('kubectl') {
           withCredentials([
-            conjurSecretCredential(credentialsId: 'MongoDB-Appuser',        variable: 'MONGO_USERNAME'),
-            conjurSecretCredential(credentialsId: 'mongo-app-pass',         variable: 'MONGO_PASSWORD'),
+            conjurSecretCredential(credentialsId: 'MongoDB-Appuser',        variable: 'MONGO_USER'),
+            conjurSecretCredential(credentialsId: 'mongo-app-pass',         variable: 'MONGO_PASS'),
             conjurSecretCredential(credentialsId: 'MongoDB-StarAI-Address', variable: 'MONGO_HOST')
           ]) {
             dir("${env.REPO_DIR}") {
