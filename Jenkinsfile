@@ -58,7 +58,6 @@ spec:
 
   parameters {
     string(name: 'GIT_REPO', defaultValue: 'Arun-Demos/StarAI-Chatbot', description: 'GitHub org/repo')
-    string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'Branch to build')
     string(name: 'FLOW_ID_PARAM', defaultValue: '', description: 'Override FLOW_ID (optional)')
     string(name: 'PUBLIC_DOMAIN_PARAM', defaultValue: '', description: 'Override domain (optional)')
   }
@@ -73,9 +72,11 @@ spec:
             conjurSecretCredential(credentialsId: 'github-token',    variable: 'GIT_TOKEN')
           ]) {
             sh '''
-              set -euo pipefail
-              rm -rf "${REPO_DIR}"
-              git clone -b "${GIT_BRANCH}" "https://${GIT_USER}:${GIT_TOKEN}@github.com/${GIT_REPO}.git" "${REPO_DIR}"
+              bash -lc '
+                set -euo pipefail
+                rm -rf "${REPO_DIR}"
+                git clone "https://${GIT_USER}:${GIT_TOKEN}@github.com/${GIT_REPO}.git" "${REPO_DIR}"
+              '
             '''
           }
         }
@@ -104,15 +105,13 @@ spec:
     stage('Compute Image Tag') {
       steps {
         container('kubectl') {
-          dir("${env.REPO_DIR}") {
-            script {
-              def sha = sh(returnStdout: true, script: "git rev-parse --short=12 HEAD").trim()
-              def ts  = sh(returnStdout: true, script: "date -u +%Y%m%d%H%M%S").trim()
-              env.IMG_TAG          = "${env.BUILD_NUMBER}-${ts}-${sha}"
-              env.ECR_IMAGE_TAGGED = "${env.ECR_IMAGE}".replace(':latest', ":${env.IMG_TAG}")
-              env.DH_IMAGE_TAGGED  = "${env.DOCKERHUB_IMAGE}".replace(':latest', ":${env.IMG_TAG}")
-              echo "[INFO] Using image tag: ${env.IMG_TAG}"
-            }
+          script {
+            def sha = sh(returnStdout: true, script: "git -C ${env.REPO_DIR} rev-parse --short=12 HEAD").trim()
+            def ts  = sh(returnStdout: true, script: "date -u +%Y%m%d%H%M%S").trim()
+            env.IMG_TAG         = "${env.BUILD_NUMBER}-${ts}-${sha}"
+            env.DH_IMAGE_TAGGED = "${env.DOCKERHUB_IMAGE}".replace(':latest', ":${env.IMG_TAG}")
+            env.ECR_IMAGE_TAGGED= "${env.ECR_IMAGE}".replace(':latest', ":${env.IMG_TAG}")
+            echo "[INFO] Using image tag: ${env.IMG_TAG}"
           }
         }
       }
@@ -122,23 +121,16 @@ spec:
       steps {
         container('kaniko') {
           dir("${env.REPO_DIR}") {
-            script {
-              def dests = [
-                "--destination=${env.ECR_IMAGE_TAGGED}",
-                "--destination=${env.ECR_IMAGE}"
-              ]
-              if (env.DOCKERHUB_IMAGE?.trim()) {
-                dests << "--destination=${env.DH_IMAGE_TAGGED}"
-                dests << "--destination=${env.DOCKERHUB_IMAGE}"
-              }
-              sh """
-                echo "[INFO] Building and pushing images..."
-                /kaniko/executor \
-                  --dockerfile=Dockerfile \
-                  --context=. \
-                  ${dests.join(' ')}
-              """
-            }
+            sh '''
+              echo "[INFO] Building image and pushing to DockerHub + ECR..."
+              /kaniko/executor \
+                --dockerfile=Dockerfile \
+                --context=. \
+                --destination=${DH_IMAGE_TAGGED} \
+                --destination=${ECR_IMAGE_TAGGED} \
+                --destination=${DOCKERHUB_IMAGE} \
+                --destination=${ECR_IMAGE}
+              '''
           }
         }
       }
