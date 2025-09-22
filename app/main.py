@@ -6,8 +6,8 @@ from pydantic import BaseModel, Field
 from pymongo import MongoClient
 from bson.decimal128 import Decimal128
 
-# Env (ConfigMap + Secret)
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")  # from Secret
+# Config: MONGO_URI comes from Secret, others from ConfigMap
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB = os.getenv("MONGO_DB", "stardb")
 MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "services")
 LANGFLOW_URL = os.getenv("LANGFLOW_URL", "http://127.0.0.1:7860")
@@ -16,7 +16,7 @@ FLOW_ID = os.getenv("FLOW_ID", "REPLACE_WITH_YOUR_FLOW_ID")
 client = MongoClient(MONGO_URI)
 services_col = client[MONGO_DB][MONGO_COLLECTION]
 
-app = FastAPI(title="Langflow Chatbot (Mongo-backed, sidecar)", version="1.0.0")
+app = FastAPI(title="Langflow Chatbot (sidecar, Mongo-backed)", version="1.0.0")
 
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User message")
@@ -87,7 +87,7 @@ async def chat(req: ChatRequest):
 
     return ChatResponse(answer=answer, context=context)
 
-# ---- Public pass-through of /api/v1/validate/code (no auth, per your requirement) ----
+# Public pass-through for /api/v1/validate/code (no auth per your requirement)
 class ValidateCodeRequest(BaseModel):
     code: str
 
