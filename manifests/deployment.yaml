@@ -16,7 +16,7 @@ spec:
       containers:
       - name: gateway
         image: 879381248241.dkr.ecr.us-east-1.amazonaws.com/starai-chatbot:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
           name: http
@@ -39,7 +39,7 @@ spec:
 
       - name: langflow
         image: langflowai/langflow:1.2.0
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         args: ["python", "-m", "langflow", "run", "--host", "0.0.0.0", "--port", "7860"]
         ports:
         - containerPort: 7860
