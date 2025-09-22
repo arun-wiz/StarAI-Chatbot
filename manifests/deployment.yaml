@@ -24,7 +24,7 @@ spec:
         - configMapRef:
             name: chatbot-config
         - secretRef:
-            name: mongo-credentials
+            name: starai-db-secret
         readinessProbe:
           httpGet: { path: /health, port: http }
           initialDelaySeconds: 10
