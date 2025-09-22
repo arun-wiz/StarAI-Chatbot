@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatbot
+  namespace: chatbot
+spec:
+  selector:
+    app: chatbot
+  ports:
+  - name: http
+    port: 80
+    targetPort: http  # maps to gateway:8080 only
+  type: ClusterIP
