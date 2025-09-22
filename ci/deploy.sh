@@ -31,7 +31,7 @@ if [[ -n "${ALB_ACM_ARN:-}" ]]; then
 fi
 
 # Apply manifests (namespace -> pvc -> config -> deployment -> service -> ingress)
-kubectl apply -f k8s/namespace.yaml
+kubectl apply -f manifests/namespace.yaml
 kubectl -n chatbot apply -f manifests/pvc.yaml
 kubectl -n chatbot apply -f manifests/configmap.yaml
 kubectl -n chatbot apply -f manifests/deployment.yaml
