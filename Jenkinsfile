@@ -51,7 +51,7 @@ spec:
     ALB_ACM_ARN        = 'arn:aws:acm:us-east-1:879381248241:certificate/35b69081-e4df-4f8f-b51b-d7f5746a0d97'
 
     // Langflow Flow ID (or override via parameter)
-    FLOW_ID            = 'REPLACE_WITH_YOUR_FLOW_ID'
+    FLOW_ID            = 'fcc765ae-a6ed-4f39-9c8f-d0a2ee793499'
   }
 
   options { ansiColor('xterm') }
