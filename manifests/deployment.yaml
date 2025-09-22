@@ -49,6 +49,12 @@ spec:
         env:
         - name: LANGFLOW_DATABASE_URL
           value: "sqlite:///./langflow.db"
+        - name: LANGFLOW_DATABASE_URL
+          value: "sqlite:////data/langflow.db"
+        volumes:
+        - name: langflow-data
+          persistentVolumeClaim:
+            claimName: langflow-pvc
         resources:
           requests: { cpu: "200m", memory: "512Mi" }
           limits:   { cpu: "1",    memory: "1Gi" }
