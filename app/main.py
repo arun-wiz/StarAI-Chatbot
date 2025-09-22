@@ -2,6 +2,7 @@ import os
 from typing import List, Dict, Any
 import httpx
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from pymongo import MongoClient
 from bson.decimal128 import Decimal128
@@ -93,6 +94,72 @@ class ValidateCodeRequest(BaseModel):
 
 @app.post("/api/v1/validate/code")
 async def validate_code(req: ValidateCodeRequest):
+
+
+@app.get("/", response_class=HTMLResponse)
+def chat_ui():
+    return """
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>StarAI Chat</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+    .msg { padding: .75rem 1rem; border-radius: 10px; margin: .5rem 0; }
+    .user { background: #eef; align-self: flex-end; }
+    .bot  { background: #f5f5f5; }
+    #log  { display: flex; flex-direction: column; gap: .25rem; }
+    button { padding: .5rem 1rem; }
+  </style>
+</head>
+<body>
+  <h1>StarAI Chat</h1>
+  <p>Ask a question. The bot will consult MongoDB (<code>stardb.services</code>) for context.</p>
+  <div id="log"></div>
+  <form id="f">
+    <input id="q" placeholder="Type your question…" style="width:70%" />
+    <input id="k" type="number" min="1" max="20" value="3" style="width:4rem" />
+    <button type="submit">Send</button>
+  </form>
+<script>
+const log = document.getElementById('log');
+const form = document.getElementById('f');
+const q = document.getElementById('q');
+const k = document.getElementById('k');
+
+function add(role, text){
+  const div = document.createElement('div');
+  div.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+  div.textContent = text;
+  log.appendChild(div);
+  window.scrollTo(0, document.body.scrollHeight);
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const message = q.value.trim();
+  if(!message) return;
+  add('user', message);
+  q.value = '';
+  try {
+    const r = await fetch('/chat', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ message, top_k: parseInt(k.value||'3',10) })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(JSON.stringify(data));
+    add('bot', data.answer);
+  } catch (err) {
+    add('bot', 'Error: ' + err.message);
+  }
+});
+</script>
+</body>
+</html>
+    """
     url = f"{LANGFLOW_URL}/api/v1/validate/code"
     async with httpx.AsyncClient(timeout=30.0) as http:
         r = await http.post(url, json=req.model_dump())
