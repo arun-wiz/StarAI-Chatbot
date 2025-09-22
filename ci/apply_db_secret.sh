@@ -46,6 +46,6 @@ for i in 1 2 3 4 5; do
   sleep 3
 done
 
-kubectl --kubeconfig "$KUBECONFIG" -n starai-mongo create secret generic starai-db-secret \
+kubectl --kubeconfig "$KUBECONFIG" -n chatbot create secret generic starai-db-secret \
   --from-literal=MONGO_URI="$MONGO_URI" \
   --dry-run=client -o yaml | kubectl --kubeconfig "$KUBECONFIG" apply -f -
