@@ -36,7 +36,7 @@ kubectl -n chatbot apply -f manifests/pvc.yaml
 kubectl -n chatbot apply -f manifests/configmap.yaml
 kubectl -n chatbot apply -f manifests/deployment.yaml
 kubectl -n chatbot apply -f manifests/service.yaml
-kubectl -n chatbot apply -f manifests/alb-ingress.yaml
+kubectl -n chatbot apply -f manifests/ingress.yaml
 
 echo "[INFO] Waiting for rollout..."
 kubectl -n chatbot rollout status deploy/chatbot --timeout=180s
