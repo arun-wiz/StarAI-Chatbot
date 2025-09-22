@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot
+  namespace: chatbot
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chatbot
+  template:
+    metadata:
+      labels:
+        app: chatbot
+    spec:
+      containers:
+      # --- Container 1: FastAPI gateway (public) ---
+      - name: gateway
+        image: 879381248241.dkr.ecr.us-east-1.amazonaws.com/starai-chatbot:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+        envFrom:
+        - configMapRef:
+            name: chatbot-config
+        - secretRef:
+            name: mongo-credentials   # contains MONGO_URI from Conjur
+        readinessProbe:
+          httpGet: { path: /health, port: http }
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet: { path: /health, port: http }
+          initialDelaySeconds: 20
+          periodSeconds: 20
+        resources:
+          requests: { cpu: "200m", memory: "256Mi" }
+          limits:   { cpu: "1",    memory: "1Gi" }
+
+      # --- Container 2: Langflow 1.2.0 (internal) ---
+      - name: langflow
+        image: langflowai/langflow:1.2.0
+        imagePullPolicy: IfNotPresent
+        args: ["python", "-m", "langflow", "run", "--host", "0.0.0.0", "--port", "7860"]
+        ports:
+        - containerPort: 7860
+          name: langflow
+        env:
+        - name: LANGFLOW_DATABASE_URL
+          value: "sqlite:///./langflow.db"
+        resources:
+          requests: { cpu: "200m", memory: "512Mi" }
+          limits:   { cpu: "1",    memory: "1Gi" }
