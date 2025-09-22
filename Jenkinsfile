@@ -124,7 +124,7 @@ spec:
             sh '''
               echo "[INFO] Building image and pushing to DockerHub + ECR..."
               /kaniko/executor \
-                --dockerfile=Dockerfile \
+                --dockerfile=app/Dockerfile \
                 --context=. \
                 --destination=${DH_IMAGE_TAGGED} \
                 --destination=${ECR_IMAGE_TAGGED} \
