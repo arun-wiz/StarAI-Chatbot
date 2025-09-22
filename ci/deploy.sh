@@ -12,9 +12,9 @@ aws eks update-kubeconfig --name "${EKS_CLUSTER_NAME_B}" --region "${EKS_REGION_
 export KUBECONFIG="$(pwd)/.kubeconfig"
 
 # Render manifests
-DEPLOY_FILE="deployment.yaml"
-CFG_FILE="configmap.yaml"
-ING_FILE="ingress.yaml"
+DEPLOY_FILE="manifests/deployment.yaml"
+CFG_FILE="manifests/configmap.yaml"
+ING_FILE="manifests/ingress.yaml"
 
 echo "[INFO] Using image: ${ECR_IMAGE_TAGGED}"
 sed -i "s#879381248241.dkr.ecr.us-east-1.amazonaws.com/starai-dashboard:latest#${ECR_IMAGE_TAGGED}#g" "${DEPLOY_FILE}"
@@ -32,11 +32,11 @@ fi
 
 # Apply manifests (namespace -> pvc -> config -> deployment -> service -> ingress)
 kubectl apply -f k8s/namespace.yaml
-kubectl -n chatbot apply -f k8s/app-langflow/pvc.yaml
-kubectl -n chatbot apply -f k8s/app-langflow/configmap.yaml
-kubectl -n chatbot apply -f k8s/app-langflow/deployment.yaml
-kubectl -n chatbot apply -f k8s/app-langflow/service.yaml
-kubectl -n chatbot apply -f k8s/ingress/alb-ingress.yaml
+kubectl -n chatbot apply -f manifests/pvc.yaml
+kubectl -n chatbot apply -f manifests/configmap.yaml
+kubectl -n chatbot apply -f manifests/deployment.yaml
+kubectl -n chatbot apply -f manifests/service.yaml
+kubectl -n chatbot apply -f manifests/alb-ingress.yaml
 
 echo "[INFO] Waiting for rollout..."
 kubectl -n chatbot rollout status deploy/chatbot --timeout=180s
