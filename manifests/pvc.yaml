@@ -9,5 +9,4 @@ spec:
   resources:
     requests:
       storage: 5Gi
-  # Optional: set your storage class if your cluster requires it, e.g. gp3 on EKS
-  # storageClassName: gp3
+  storageClassName: efs-sc
