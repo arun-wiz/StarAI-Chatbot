@@ -60,6 +60,7 @@ spec:
     string(name: 'GIT_REPO', defaultValue: 'Arun-Demos/StarAI-Chatbot', description: 'GitHub org/repo')
     string(name: 'FLOW_ID_PARAM', defaultValue: '', description: 'Override FLOW_ID (optional)')
     string(name: 'PUBLIC_DOMAIN_PARAM', defaultValue: '', description: 'Override domain (optional)')
+    string(name: 'OPENAI_API_KEY', defaultValue: '', description: 'Chat to include responde from OpenAI (optional)')
   }
 
   stages {
