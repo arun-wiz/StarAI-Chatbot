@@ -1,5 +1,6 @@
 import os
 from typing import List, Dict, Any
+
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
@@ -7,7 +8,7 @@ from pydantic import BaseModel, Field
 from pymongo import MongoClient
 from bson.decimal128 import Decimal128
 
-# Config: MONGO_URI comes from Secret, others from ConfigMap
+# ---- Config (env via ConfigMap + Secret) ----
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB = os.getenv("MONGO_DB", "stardb")
 MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "services")
@@ -19,19 +20,25 @@ services_col = client[MONGO_DB][MONGO_COLLECTION]
 
 app = FastAPI(title="Langflow Chatbot (sidecar, Mongo-backed)", version="1.0.0")
 
+
+# ------------ Models ------------
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User message")
     top_k: int = Field(3, ge=1, le=20, description="How many services to include as context")
+
 
 class Service(BaseModel):
     name: str
     subscribers: int
     revenue: str  # Decimal128 rendered as string
 
+
 class ChatResponse(BaseModel):
     answer: str
     context: List[Service]
 
+
+# ------------ Helpers ------------
 def _to_service_doc(doc: Dict[str, Any]) -> Service:
     revenue = doc.get("revenue")
     if isinstance(revenue, Decimal128):
@@ -41,9 +48,11 @@ def _to_service_doc(doc: Dict[str, Any]) -> Service:
     return Service(
         name=doc.get("name"),
         subscribers=int(doc.get("subscribers", 0)),
-        revenue=revenue
+        revenue=revenue,
     )
 
+
+# ------------ Health & data ------------
 @app.get("/health")
 def health():
     try:
@@ -52,26 +61,33 @@ def health():
         return {"ok": False, "error": f"Mongo error: {e}"}
     return {"ok": True}
 
+
 @app.get("/api/services", response_model=List[Service])
 def list_services():
-    docs = list(services_col.find({}, {"_id": 0, "name": 1, "subscribers": 1, "revenue": 1}).sort("name", 1))
+    docs = list(
+        services_col.find({}, {"_id": 0, "name": 1, "subscribers": 1, "revenue": 1}).sort("name", 1)
+    )
     return [_to_service_doc(d) for d in docs]
 
+
+# ------------ Chat ------------
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
     docs = list(
         services_col.find({}, {"_id": 0, "name": 1, "subscribers": 1, "revenue": 1})
-                    .sort("subscribers", -1)
-                    .limit(req.top_k)
+        .sort("subscribers", -1)
+        .limit(req.top_k)
     )
     context = [_to_service_doc(d) for d in docs]
-    context_str = "\n".join([f"{s.name}: subscribers={s.subscribers}, revenue={s.revenue}" for s in context])
+    context_str = "\n".join(
+        [f"{s.name}: subscribers={s.subscribers}, revenue={s.revenue}" for s in context]
+    )
 
     payload = {
         "input_value": req.message,
         "input_type": "chat",
         "output_type": "chat",
-        "tweaks": { "context": context_str }
+        "tweaks": {"context": context_str},
     }
 
     url = f"{LANGFLOW_URL}/api/v1/run/{FLOW_ID}?stream=false"
@@ -88,14 +104,22 @@ async def chat(req: ChatRequest):
 
     return ChatResponse(answer=answer, context=context)
 
-# Public pass-through for /api/v1/validate/code (no auth per your requirement)
+
+# ------------ Public pass-through to Langflow's validator ------------
 class ValidateCodeRequest(BaseModel):
     code: str
 
+
 @app.post("/api/v1/validate/code")
 async def validate_code(req: ValidateCodeRequest):
+    url = f"{LANGFLOW_URL}/api/v1/validate/code"
+    async with httpx.AsyncClient(timeout=30.0) as http:
+        r = await http.post(url, json=req.model_dump())
+        # return body & status transparently
+        return r.json(), r.status_code
 
 
+# ------------ Minimal browser chat UI (GET /) ------------
 @app.get("/", response_class=HTMLResponse)
 def chat_ui():
     return """
@@ -112,22 +136,24 @@ def chat_ui():
     .bot  { background: #f5f5f5; }
     #log  { display: flex; flex-direction: column; gap: .25rem; }
     button { padding: .5rem 1rem; }
+    form { margin-top: 1rem; display: flex; gap: .5rem; }
+    input[type="text"] { flex: 1; }
   </style>
 </head>
 <body>
   <h1>StarAI Chat</h1>
-  <p>Ask a question. The bot will consult MongoDB (<code>stardb.services</code>) for context.</p>
+  <p>Ask a question. The bot consults MongoDB (<code>stardb.services</code>) for context.</p>
   <div id="log"></div>
-  <form id="f">
-    <input id="q" placeholder="Type your question…" style="width:70%" />
+  <form id="f" onsubmit="return false;">
+    <input id="q" type="text" placeholder="Type your question…" />
     <input id="k" type="number" min="1" max="20" value="3" style="width:4rem" />
-    <button type="submit">Send</button>
+    <button id="send">Send</button>
   </form>
 <script>
 const log = document.getElementById('log');
-const form = document.getElementById('f');
 const q = document.getElementById('q');
 const k = document.getElementById('k');
+const send = document.getElementById('send');
 
 function add(role, text){
   const div = document.createElement('div');
@@ -137,8 +163,7 @@ function add(role, text){
   window.scrollTo(0, document.body.scrollHeight);
 }
 
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
+send.addEventListener('click', async () => {
   const message = q.value.trim();
   if(!message) return;
   add('user', message);
@@ -160,7 +185,3 @@ form.addEventListener('submit', async (e) => {
 </body>
 </html>
     """
-    url = f"{LANGFLOW_URL}/api/v1/validate/code"
-    async with httpx.AsyncClient(timeout=30.0) as http:
-        r = await http.post(url, json=req.model_dump())
-        return r.json(), r.status_code
