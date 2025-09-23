@@ -21,6 +21,18 @@ spec:
     volumeMounts:
     - name: kaniko-secret
       mountPath: /kaniko/.docker
+    - name: img-out
+      mountPath: /img-out
+  - name: trivy
+    image: aquasec/trivy:0.66.0
+    # keep container alive for Jenkins to exec into
+    command: ["/bin/sh","-c","tail -f /dev/null"]
+    tty: true
+    volumeMounts:
+    - name: trivy-cache
+      mountPath: /root/.cache/
+    - name: img-out
+      mountPath: /img-out
   volumes:
   - name: kaniko-secret
     secret:
@@ -28,6 +40,10 @@ spec:
       items:
       - key: .dockerconfigjson
         path: config.json
+  - name: trivy-cache
+    emptyDir: {}
+  - name: img-out
+    emptyDir: {}
 '''
     }
   }
@@ -84,7 +100,46 @@ spec:
       }
     }
 
-    stage('Fetch AWS Dynamic Secret') {
+    stage('Code Scan') {
+      environment {
+        TRIVY_CACHE_DIR = '/root/.cache/trivy'
+      }
+      steps {
+        container('trivy') {
+          dir("${env.REPO_DIR}") {
+            sh '''
+              set -euo pipefail
+              mkdir -p reports/trivy
+              # ensure CSS is next to index.html so Jenkins serves it with the right CSP
+              cp -f scan-templates/trivy-report.css reports/trivy/ || true
+    
+              trivy fs \
+                --scanners vuln,secret,misconfig \
+                --exit-code 0 \
+                --no-progress \
+                --cache-dir "${TRIVY_CACHE_DIR}" \
+                --format template \
+                --template "@scan-templates/trivy-rich-csp.html.tpl" \
+                --output reports/trivy/index.html \
+                .
+            '''
+          }
+    
+          publishHTML(target: [
+            allowMissing: false,
+            alwaysLinkToLastBuild: true,
+            keepAll: true,
+            reportDir: "${env.REPO_DIR}/reports/trivy",
+            reportFiles: 'index.html',
+            reportName: 'Trivy Repository Scan'
+          ])
+    
+          archiveArtifacts artifacts: "${env.REPO_DIR}/reports/trivy/**", fingerprint: true
+        }
+      }
+    }
+    
+    stage('Fetch AWS Creds') {
       steps {
         container('kubectl') {
           withCredentials([
@@ -110,6 +165,7 @@ spec:
             def sha = sh(returnStdout: true, script: "git -C ${env.REPO_DIR} rev-parse --short=12 HEAD").trim()
             def ts  = sh(returnStdout: true, script: "date -u +%Y%m%d%H%M%S").trim()
             env.IMG_TAG         = "${env.BUILD_NUMBER}-${ts}-${sha}"
+            env.IMG_TAR         = "/img-out/${env.IMG_TAG}.tar"
             env.DH_IMAGE_TAGGED = "${env.DOCKERHUB_IMAGE}".replace(':latest', ":${env.IMG_TAG}")
             env.ECR_IMAGE_TAGGED= "${env.ECR_IMAGE}".replace(':latest', ":${env.IMG_TAG}")
             echo "[INFO] Using image tag: ${env.IMG_TAG}"
@@ -118,7 +174,63 @@ spec:
       }
     }
 
-    stage('Kaniko Build & Push (DockerHub + ECR)') {
+    stage('Kaniko Build') {
+      steps {
+        container('kaniko') {
+          dir("${env.REPO_DIR}") {
+            sh '''
+              echo "[INFO] Building image tar with Kaniko (no push)…"
+              /kaniko/executor \
+                --dockerfile=Dockerfile \
+                --context=. \
+                --no-push \
+                --tarPath="${IMG_TAR}"
+              ls -lh /img-out || true
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Image Scan') {
+      environment { TRIVY_CACHE_DIR = '/root/.cache/trivy' }
+      steps {
+        container('trivy') {
+          dir("${env.REPO_DIR}") {
+            sh '''
+              set -euo 
+              IMG_TAR="${IMG_TAR:-/img-out/${IMG_TAG}.tar}"
+              mkdir -p reports/trivy-image
+              cp -f scan-templates/trivy-report.css reports/trivy-image/ || true
+
+              echo "[INFO] Scanning image tar with Trivy (advisory only)…"
+              trivy image \
+                --input "${IMG_TAR}" \
+                --scanners vuln,secret \
+                --exit-code 0 \
+                --no-progress \
+                --cache-dir "${TRIVY_CACHE_DIR}" \
+                --format template \
+                --template "@scan-templates/trivy-image-csp.html.tpl" \
+                --output reports/trivy-image/index.html
+            '''
+          }
+          publishHTML(target: [
+            allowMissing: false, alwaysLinkToLastBuild: true, keepAll: true,
+            reportDir: "${env.REPO_DIR}/reports/trivy-image", reportFiles: 'index.html',
+            reportName: 'Trivy Image Scan (Pre-push)'
+          ])
+          archiveArtifacts artifacts: "${env.REPO_DIR}/reports/trivy-image/**", fingerprint: true
+        }
+
+        // ---- Gate option (disabled by default):
+        // To enforce blocking on HIGH/CRITICAL, replace "--exit-code 0" above with:
+        //   --exit-code 1 --severity HIGH,CRITICAL
+        // and Jenkins will fail this stage on those findings.
+      }
+    }
+    
+    stage('Kaniko Push (DockerHub + ECR)') {
       steps {
         container('kaniko') {
           dir("${env.REPO_DIR}") {
@@ -137,7 +249,7 @@ spec:
       }
     }
 
-    stage('Render & Apply DB Secret from Conjur') {
+    stage('Apply DB Secret from Conjur') {
       steps {
         container('kubectl') {
           withCredentials([
