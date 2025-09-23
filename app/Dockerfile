@@ -16,9 +16,10 @@ RUN echo "REQ_SHA=${REQ_SHA}"
 # install deps and hard-fail if missing
 RUN python -m pip install --no-cache-dir -r /app/requirements.txt \
  && python - <<'PY'
-import importlib
-for m in ("fastapi","uvicorn","httpx","pymongo"):
-    importlib.import_module(m)
+import pkgutil, sys
+mods = ["fastapi","uvicorn","httpx","pymongo"]
+missing = [m for m in mods if not pkgutil.find_loader(m)]
+assert not missing, f"Missing packages: {missing}; sys.path={sys.path}"
 print("deps ok")
 PY
 
