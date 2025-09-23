@@ -5,8 +5,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
 
-# ⛔️ Remove pip upgrade lines – avoid the flake
-
 COPY app/requirements.txt /app/requirements.txt
 
 # cache-buster
