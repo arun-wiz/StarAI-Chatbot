@@ -13,6 +13,7 @@ spec:
       labels:
         app: chatbot
     spec:
+      serviceAccountName: chatbot-admin 
       containers:
       - name: gateway
         image: 879381248241.dkr.ecr.us-east-1.amazonaws.com/starai-chatbot:latest
