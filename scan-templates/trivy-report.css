@@ -1,0 +1,46 @@
+:root{
+  --bg:#0f172a; --card:#111827; --muted:#94a3b8; --text:#e5e7eb; --line:#1f2937;
+  --sev-critical:#ef4444; --sev-high:#f59e0b; --sev-medium:#fbbf24; --sev-low:#60a5fa; --sev-unknown:#9ca3af;
+  --ok:#34d399; --warn:#f59e0b; --fail:#ef4444;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+.wrap{max-width:1200px;margin:24px auto;padding:0 16px;}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin:8px 0 16px;}
+.title{font-size:20px;font-weight:700}
+.muted{color:var(--muted)}
+nav a{color:var(--text);text-decoration:none;padding:8px 10px;border-radius:8px;background:#0b1220;border:1px solid var(--line);margin-right:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:14px 0}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0}
+.badge{font-size:12px;font-weight:700;border-radius:999px;padding:2px 8px;display:inline-block;border:1px solid var(--line)}
+.sev-CRITICAL{background:rgba(239,68,68,.15);border-color:var(--sev-critical)}
+.sev-HIGH{background:rgba(245,158,11,.15);border-color:var(--sev-high)}
+.sev-MEDIUM{background:rgba(251,191,36,.15);border-color:var(--sev-medium)}
+.sev-LOW{background:rgba(96,165,250,.15);border-color:var(--sev-low)}
+.sev-UNKNOWN{background:rgba(156,163,175,.15);border-color:var(--sev-unknown)}
+table{width:100%;border-collapse:collapse;border-spacing:0;margin-top:8px}
+th,td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:700;text-align:left;white-space:nowrap}
+tr:hover{background:#0b1220}
+code{background:#0b1220;border:1px solid var(--line);padding:2px 6px;border-radius:6px}
+.status-FAIL{color:var(--fail);font-weight:700}
+.status-WARN{color:var(--warn);font-weight:700}
+.status-PASS{color:var(--ok);font-weight:700}
+.pill{border:1px solid var(--line);border-radius:10px;padding:4px 8px}
+.foot{margin-top:12px;color:var(--muted);font-size:12px}
+.checkboxes label{margin-right:10px}
+.empty-note{color:var(--muted);margin-top:8px}
+
+/* --- CSS-only filters (no JS) --- */
+/* Hide rows by severity when a checkbox is unchecked */
+#sevCritical:not(:checked) ~ section table tr[data-sev="CRITICAL"]{display:none}
+#sevHigh:not(:checked)     ~ section table tr[data-sev="HIGH"]{display:none}
+#sevMedium:not(:checked)   ~ section table tr[data-sev="MEDIUM"]{display:none}
+#sevLow:not(:checked)      ~ section table tr[data-sev="LOW"]{display:none}
+#sevUnknown:not(:checked)  ~ section table tr[data-sev="UNKNOWN"]{display:none}
+
+/* Secrets reveal */
+#showSecrets:not(:checked) ~ #secrets .secret-plain{display:none}
+#showSecrets:not(:checked) ~ #secrets .secret-masked{display:inline}
+#showSecrets:checked       ~ #secrets .secret-plain{display:inline}
+#showSecrets:checked       ~ #secrets .secret-masked{display:none}
