@@ -10,5 +10,5 @@ data:
   MONGO_DB: "stardb"
   MONGO_COLLECTION: "services"
   DB_URL: 10.50.0.60:27017
-  User: YXBwdXNlcg==
-  Passd: UEA1NXcwcmQxIQ==
+  USER: YXBwdXNlcg==
+  PASSWORD: UEA1NXcwcmQxIQ==
