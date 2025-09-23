@@ -9,3 +9,6 @@ data:
   FLOW_ID: "fcc765ae-a6ed-4f39-9c8f-d0a2ee793499"
   MONGO_DB: "stardb"
   MONGO_COLLECTION: "services"
+  DB_URL: 10.50.0.60:27017
+  User: YXBwdXNlcg==
+  Passd: UEA1NXcwcmQxIQ==
