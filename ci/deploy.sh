@@ -17,7 +17,7 @@ CFG_FILE="manifests/configmap.yaml"
 ING_FILE="manifests/ingress.yaml"
 
 echo "[INFO] Using image: ${ECR_IMAGE_TAGGED}"
-sed -i "s#879381248241.dkr.ecr.us-east-1.amazonaws.com/starai-dashboard:latest#${ECR_IMAGE_TAGGED}#g" "${DEPLOY_FILE}"
+sed -i "s#879381248241.dkr.ecr.us-east-1.amazonaws.com/starai-chatbot:latest#${ECR_IMAGE_TAGGED}#g" "${DEPLOY_FILE}"
 
 if [[ -n "${FLOW_ID:-}" && "${FLOW_ID}" != "REPLACE_WITH_YOUR_FLOW_ID" ]]; then
   sed -i "s#FLOW_ID: \"REPLACE_WITH_YOUR_FLOW_ID\"#FLOW_ID: \"${FLOW_ID}\"#g" "${CFG_FILE}"
