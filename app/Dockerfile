@@ -24,5 +24,6 @@ print("deps ok")
 PY
 
 COPY app/main.py /app/main.py
+COPY app/wizexercise.txt /app/wizexercise.txt
 EXPOSE 8080
 CMD ["python","-m","uvicorn","main:app","--host","0.0.0.0","--port","8080"]
