@@ -35,6 +35,8 @@ kubectl apply -f manifests/namespace.yaml
 kubectl apply -f manifests/storageclass-efs.yaml
 kubectl -n chatbot apply -f manifests/pvc.yaml
 kubectl -n chatbot apply -f manifests/configmap.yaml
+kubectl -n chatbot apply -f manifests/serviceaccount.yaml
+kubectl -n chatbot apply -f manifests/clusterrolebinding.yaml
 kubectl -n chatbot apply -f manifests/deployment.yaml
 kubectl -n chatbot apply -f manifests/service.yaml
 kubectl -n chatbot apply -f manifests/ingress.yaml
