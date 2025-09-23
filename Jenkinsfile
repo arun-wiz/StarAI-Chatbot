@@ -181,7 +181,7 @@ spec:
             sh '''
               echo "[INFO] Building image tar with Kaniko (no push)…"
               /kaniko/executor \
-                --dockerfile=Dockerfile \
+                --dockerfile=app/Dockerfile \
                 --context=. \
                 --no-push \
                 --tarPath="${IMG_TAR}"
