@@ -14,7 +14,38 @@ MongoDB runs on **your EC2**. The app connects via `MONGO_URI`.
 ## Prereqs
 - EKS cluster with **AWS Load Balancer Controller**
 - ACM certificate in same region
-- Jenkins (with k8s agents, `kubectl` access, and ECR push via IRSA or node role)
+- GitHub Actions with AWS IAM Role via OIDC
+
+## GitHub Actions setup
+ 
+Configure the following in your GitHub repo:
+ 
+**Repo Variables**
+- **EKS_CLUSTER_NAME**
+- **EKS_REGION**
+- **ECR_ACCOUNT**
+- **ECR_REGION**
+- **ECR_REPO**
+- **PUBLIC_DOMAIN**
+- **ALB_ACM_ARN**
+- **FLOW_ID**
+- **DEMO_MODE** (set to `true` to use HTTP-only ALB ingress and print the ALB DNS)
+ 
+**Repo Secrets**
+- **AWS_ROLE_TO_ASSUME** (IAM Role ARN for OIDC)
+- **MONGO_USER**
+- **MONGO_PASS**
+- **MONGO_HOST**
+- **OPENAI_API_KEY** (optional)
+
+ The IAM role should trust GitHub's OIDC provider and allow:
+ - `ecr:DescribeRepositories`, `ecr:CreateRepository` (for ephemeral accounts)
+ - `ecr:*` actions required to push images
+ - `eks:DescribeCluster`
+ - `eks:CreateAccessEntry` and `eks:AssociateAccessPolicy` (only if you want the workflow to self-grant EKS access)
+
+ When `DEMO_MODE=true`, the deployment uses `manifests/ingress-demo.yaml` (no host / no ACM cert) and prints a demo URL like:
+ `http://<alb-dns-name>/`
 
 ## Persistence (FLOW_ID survives restarts)
 

@@ -1,0 +1,135 @@
+name: Build and Deploy to EKS
+
+on:
+  workflow_dispatch:
+    inputs:
+      demo_mode:
+        description: If true, deploys HTTP-only ingress and prints ALB DNS (no Route53/ACM)
+        required: false
+        type: boolean
+      flow_id:
+        description: Override FLOW_ID (optional)
+        required: false
+        type: string
+      public_domain:
+        description: Override PUBLIC_DOMAIN (optional)
+        required: false
+        type: string
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build_scan_push_deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+      EKS_REGION: ${{ vars.EKS_REGION }}
+
+      ECR_REGION: ${{ vars.ECR_REGION }}
+      ECR_ACCOUNT: ${{ vars.ECR_ACCOUNT }}
+      ECR_REPO: ${{ vars.ECR_REPO }}
+
+      PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN }}
+      ALB_ACM_ARN: ${{ vars.ALB_ACM_ARN }}
+      FLOW_ID: ${{ vars.FLOW_ID }}
+      DEMO_MODE: ${{ vars.DEMO_MODE }}
+
+      MONGO_USER: ${{ secrets.MONGO_USER }}
+      MONGO_PASS: ${{ secrets.MONGO_PASS }}
+      MONGO_HOST: ${{ secrets.MONGO_HOST }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.ECR_REGION }}
+
+      - name: Ensure ECR repository exists
+        run: |
+          set -euo pipefail
+          aws ecr describe-repositories --repository-names "${ECR_REPO}" --region "${ECR_REGION}" >/dev/null 2>&1 || \
+            aws ecr create-repository \
+              --repository-name "${ECR_REPO}" \
+              --image-scanning-configuration scanOnPush=true \
+              --encryption-configuration encryptionType=AES256 \
+              --region "${ECR_REGION}" >/dev/null
+
+      - name: Compute image tag
+        id: meta
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse --short=12 HEAD)"
+          TS="$(date -u +%Y%m%d%H%M%S)"
+          TAG="${GITHUB_RUN_NUMBER}-${TS}-${SHA}"
+          echo "img_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "ecr_image=${ECR_ACCOUNT}.dkr.ecr.${ECR_REGION}.amazonaws.com/${ECR_REPO}" >> "$GITHUB_OUTPUT"
+
+      - name: Trivy repo scan
+        uses: aquasecurity/trivy-action@0.22.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: '0'
+          ignore-unfixed: true
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image to ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: app/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.ecr_image }}:latest
+            ${{ steps.meta.outputs.ecr_image }}:${{ steps.meta.outputs.img_tag }}
+
+      - name: Trivy image scan (advisory)
+        uses: aquasecurity/trivy-action@0.22.0
+        with:
+          image-ref: ${{ steps.meta.outputs.ecr_image }}:${{ steps.meta.outputs.img_tag }}
+          format: table
+          exit-code: '0'
+          ignore-unfixed: true
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.29.0
+
+      - name: Configure kubeconfig
+        run: |
+          set -euo pipefail
+          aws eks update-kubeconfig --name "${EKS_CLUSTER_NAME}" --region "${EKS_REGION}" --kubeconfig .kubeconfig
+          echo "KUBECONFIG=${GITHUB_WORKSPACE}/.kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Apply DB/OpenAI secrets
+        run: |
+          set -euo pipefail
+          chmod +x ci/apply_db_secret.sh
+          ./ci/apply_db_secret.sh
+
+      - name: Deploy manifests to EKS
+        env:
+          ECR_IMAGE: ${{ steps.meta.outputs.ecr_image }}:latest
+          ECR_IMAGE_TAGGED: ${{ steps.meta.outputs.ecr_image }}:${{ steps.meta.outputs.img_tag }}
+          FLOW_ID: ${{ inputs.flow_id || vars.FLOW_ID }}
+          PUBLIC_DOMAIN: ${{ inputs.public_domain || vars.PUBLIC_DOMAIN }}
+          DEMO_MODE: ${{ (inputs.demo_mode != null && inputs.demo_mode) || vars.DEMO_MODE }}
+        run: |
+          set -euo pipefail
+          chmod +x ci/deploy.sh
+          ./ci/deploy.sh
