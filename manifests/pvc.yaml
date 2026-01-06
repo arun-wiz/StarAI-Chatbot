@@ -5,8 +5,8 @@ metadata:
   namespace: chatbot
 spec:
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   resources:
     requests:
       storage: 5Gi
-  storageClassName: efs-sc
+
