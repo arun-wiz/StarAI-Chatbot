@@ -10,7 +10,7 @@ on:
         default: true
       langflow_seed_image:
         description: DockerHub image (e.g. username/repo:tag) containing /seed/langflow.db
-        required: true
+        required: false
         type: string
       flow_id:
         description: Override FLOW_ID (optional)
@@ -130,10 +130,6 @@ jobs:
       - name: Validate inputs
         run: |
           set -euo pipefail
-          if [[ -z "${{ inputs.langflow_seed_image }}" ]]; then
-            echo "ERROR: workflow input 'langflow_seed_image' is required (DockerHub image that contains /seed/langflow.db)." >&2
-            exit 1
-          fi
           if [[ "${{ inputs.demo_mode }}" != "true" ]]; then
             if [[ -z "${{ inputs.public_domain }}" || -z "${{ inputs.alb_acm_arn }}" ]]; then
               echo "ERROR: demo_mode=false requires workflow inputs 'public_domain' and 'alb_acm_arn'." >&2

@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot
+  namespace: chatbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chatbot
+  template:
+    metadata:
+      labels:
+        app: chatbot
+    spec:
+      serviceAccountName: chatbot-admin 
+      containers:
+      - name: gateway
+        image: 879381248241.dkr.ecr.us-east-1.amazonaws.com/starai-chatbot:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        envFrom:
+        - configMapRef:
+            name: chatbot-config
+        - secretRef:
+            name: starai-db-secret
+        readinessProbe:
+          httpGet: { path: /health, port: http }
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet: { path: /health, port: http }
+          initialDelaySeconds: 20
+          periodSeconds: 20
+        resources:
+          requests: { cpu: "200m", memory: "256Mi" }
+          limits:   { cpu: "1",    memory: "1Gi" }
+
+      - name: langflow
+        image: langflowai/langflow:1.2.0
+        imagePullPolicy: Always
+        args: ["python", "-m", "langflow", "run", "--host", "0.0.0.0", "--port", "7860"]
+        ports:
+        - containerPort: 7860
+          name: langflow
+        env:
+        - name: LANGFLOW_DATABASE_URL
+          value: "sqlite:////data/langflow.db"
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-secret
+              key: OPENAI_API_KEY
+        resources:
+          requests: { cpu: "200m", memory: "512Mi" }
+          limits:   { cpu: "1",    memory: "1Gi" }
+        volumeMounts:
+        - name: langflow-data
+          mountPath: /data
+
+      volumes:
+      - name: langflow-data
+        persistentVolumeClaim:
+          claimName: langflow-pvc

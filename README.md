@@ -53,7 +53,9 @@ Configure the following in your GitHub repo:
  ## Langflow seed image (ephemeral clusters)
  
  Since the entire cluster is ephemeral, Langflow's SQLite DB is seeded via an initContainer.
- Build and push a Docker image (DockerHub) that contains `/seed/langflow.db`, then provide it via the workflow input `langflow_seed_image`.
+ Seeding is optional:
+ - If you provide `langflow_seed_image`, the deployment seeds `/data/langflow.db` before Langflow starts.
+ - If you omit it, Langflow will start with a fresh DB and you can build the flow in the running environment.
 
  ### Build the flow in EKS and export `langflow.db`
  
