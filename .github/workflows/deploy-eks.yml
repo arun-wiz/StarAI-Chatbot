@@ -121,6 +121,11 @@ jobs:
           aws eks update-kubeconfig --name "${EKS_CLUSTER_NAME}" --region "${EKS_REGION}" --kubeconfig .kubeconfig
           echo "KUBECONFIG=${GITHUB_WORKSPACE}/.kubeconfig" >> "$GITHUB_ENV"
 
+      - name: Ensure namespace exists
+        run: |
+          set -euo pipefail
+          kubectl get namespace chatbot >/dev/null 2>&1 || kubectl create namespace chatbot
+
       - name: Apply DB/OpenAI secrets
         run: |
           set -euo pipefail
