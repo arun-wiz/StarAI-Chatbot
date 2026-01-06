@@ -26,10 +26,13 @@ Configure the following in your GitHub repo:
 - **ECR_ACCOUNT**
 - **ECR_REGION**
 - **ECR_REPO**
-- **PUBLIC_DOMAIN**
-- **ALB_ACM_ARN**
 - **FLOW_ID**
-- **DEMO_MODE** (set to `true` to use HTTP-only ALB ingress and print the ALB DNS)
+  
+ The workflow is intended to be run manually via `workflow_dispatch`.
+ 
+ - Use `demo_mode=true` for ephemeral/demo accounts (HTTP-only ALB ingress, prints the ALB DNS)
+ - Use `demo_mode=false` for custom domain + TLS (requires `public_domain` and `alb_acm_arn` inputs)
+ - Provide `langflow_seed_image` to seed Langflow's SQLite DB on every fresh cluster
  
 **Repo Secrets**
 - **AWS_ROLE_TO_ASSUME** (IAM Role ARN for OIDC)
@@ -44,8 +47,43 @@ Configure the following in your GitHub repo:
  - `eks:DescribeCluster`
  - `eks:CreateAccessEntry` and `eks:AssociateAccessPolicy` (only if you want the workflow to self-grant EKS access)
 
- When `DEMO_MODE=true`, the deployment uses `manifests/ingress-demo.yaml` (no host / no ACM cert) and prints a demo URL like:
+ When `demo_mode=true`, the deployment uses `manifests/ingress-demo.yaml` (no host / no ACM cert) and prints a demo URL like:
  `http://<alb-dns-name>/`
+
+ ## Langflow seed image (ephemeral clusters)
+ 
+ Since the entire cluster is ephemeral, Langflow's SQLite DB is seeded via an initContainer.
+ Build and push a Docker image (DockerHub) that contains `/seed/langflow.db`, then provide it via the workflow input `langflow_seed_image`.
+
+ ### Build the flow in EKS and export `langflow.db`
+ 
+ 1) Deploy the stack once (any mode) so the `chatbot` pod exists.
+ 2) Port-forward Langflow locally:
+ 
+ ```bash
+ kubectl -n chatbot port-forward deploy/chatbot 7860:7860
+ ```
+ 
+ 3) Open Langflow in your browser: `http://localhost:7860`
+ 4) Create your flow and record the `FLOW_ID`.
+ 5) Copy the SQLite DB out of the running pod:
+ 
+ ```bash
+ POD="$(kubectl -n chatbot get pod -l app=chatbot -o jsonpath='{.items[0].metadata.name}')"
+ kubectl -n chatbot cp "$POD:/data/langflow.db" ./langflow-seed/langflow.db
+ ```
+ 
+ ### Build/push the seed image to DockerHub (GitHub Actions)
+ 
+ This repo includes a manual workflow: `.github/workflows/build-langflow-seed-image.yml`.
+ 
+ - Add GitHub Secrets:
+   - `DOCKERHUB_USERNAME`
+   - `DOCKERHUB_TOKEN`
+ - Ensure `langflow-seed/langflow.db` exists in the repo workspace.
+ - Run the workflow and set:
+   - `image_name` = `yourdockerhubuser/langflow-seed`
+   - `image_tag` = `1.0.0`
 
 ## Persistence (FLOW_ID survives restarts)
 

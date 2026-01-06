@@ -7,17 +7,23 @@ on:
         description: If true, deploys HTTP-only ingress and prints ALB DNS (no Route53/ACM)
         required: false
         type: boolean
+        default: true
+      langflow_seed_image:
+        description: DockerHub image (e.g. username/repo:tag) containing /seed/langflow.db
+        required: true
+        type: string
       flow_id:
         description: Override FLOW_ID (optional)
         required: false
         type: string
       public_domain:
-        description: Override PUBLIC_DOMAIN (optional)
+        description: Public domain for HTTPS ingress (required when demo_mode=false)
         required: false
         type: string
-  push:
-    branches:
-      - main
+      alb_acm_arn:
+        description: ACM certificate ARN for HTTPS ingress (required when demo_mode=false)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -38,7 +44,6 @@ jobs:
       PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN }}
       ALB_ACM_ARN: ${{ vars.ALB_ACM_ARN }}
       FLOW_ID: ${{ vars.FLOW_ID }}
-      DEMO_MODE: ${{ vars.DEMO_MODE }}
 
       MONGO_USER: ${{ secrets.MONGO_USER }}
       MONGO_PASS: ${{ secrets.MONGO_PASS }}
@@ -122,13 +127,29 @@ jobs:
           chmod +x ci/apply_db_secret.sh
           ./ci/apply_db_secret.sh
 
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+          if [[ -z "${{ inputs.langflow_seed_image }}" ]]; then
+            echo "ERROR: workflow input 'langflow_seed_image' is required (DockerHub image that contains /seed/langflow.db)." >&2
+            exit 1
+          fi
+          if [[ "${{ inputs.demo_mode }}" != "true" ]]; then
+            if [[ -z "${{ inputs.public_domain }}" || -z "${{ inputs.alb_acm_arn }}" ]]; then
+              echo "ERROR: demo_mode=false requires workflow inputs 'public_domain' and 'alb_acm_arn'." >&2
+              exit 1
+            fi
+          fi
+
       - name: Deploy manifests to EKS
         env:
           ECR_IMAGE: ${{ steps.meta.outputs.ecr_image }}:latest
           ECR_IMAGE_TAGGED: ${{ steps.meta.outputs.ecr_image }}:${{ steps.meta.outputs.img_tag }}
+          LANGFLOW_SEED_IMAGE: ${{ inputs.langflow_seed_image }}
           FLOW_ID: ${{ inputs.flow_id || vars.FLOW_ID }}
           PUBLIC_DOMAIN: ${{ inputs.public_domain || vars.PUBLIC_DOMAIN }}
-          DEMO_MODE: ${{ (inputs.demo_mode != null && inputs.demo_mode) || vars.DEMO_MODE }}
+          ALB_ACM_ARN: ${{ inputs.alb_acm_arn || vars.ALB_ACM_ARN }}
+          DEMO_MODE: ${{ inputs.demo_mode }}
         run: |
           set -euo pipefail
           chmod +x ci/deploy.sh

@@ -13,6 +13,7 @@ EKS_REGION="${EKS_REGION:-${EKS_REGION_B:-}}"
 : "${EKS_CLUSTER_NAME:?missing}"
 : "${EKS_REGION:?missing}"
 DEMO_MODE="${DEMO_MODE:-false}"
+: "${LANGFLOW_SEED_IMAGE:?missing}"
 
 echo "[INFO] Setting kubeconfig for ${EKS_CLUSTER_NAME} (${EKS_REGION})..."
 aws eks update-kubeconfig --name "${EKS_CLUSTER_NAME}" --region "${EKS_REGION}" --kubeconfig .kubeconfig
@@ -26,6 +27,9 @@ ING_FILE_DEMO="manifests/ingress-demo.yaml"
 
 echo "[INFO] Using image: ${ECR_IMAGE_TAGGED}"
 sed -i "s#879381248241.dkr.ecr.us-east-1.amazonaws.com/starai-chatbot:latest#${ECR_IMAGE_TAGGED}#g" "${DEPLOY_FILE}"
+
+echo "[INFO] Using Langflow seed image: ${LANGFLOW_SEED_IMAGE}"
+sed -i "s#docker.io/REPLACE_LANGFLOW_SEED_IMAGE#docker.io/${LANGFLOW_SEED_IMAGE}#g" "${DEPLOY_FILE}"
 
 if [[ -n "${FLOW_ID:-}" && "${FLOW_ID}" != "REPLACE_WITH_YOUR_FLOW_ID" ]]; then
   sed -i "s#FLOW_ID: \"REPLACE_WITH_YOUR_FLOW_ID\"#FLOW_ID: \"${FLOW_ID}\"#g" "${CFG_FILE}"

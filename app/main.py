@@ -117,26 +117,41 @@ def list_services():
 # -------------------- Chat --------------------
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
-    # Deterministic fast-path for common question
     q_lower = req.message.lower().strip()
-    if ("highest" in q_lower or "most" in q_lower) and "revenue" in q_lower:
-        top_doc = services_col.find(
-            {}, {"_id": 0, "name": 1, "subscribers": 1, "revenue": 1}
-        ).sort("revenue", -1).limit(1)
-        doc = next(top_doc, None)
-        if doc:
-            s = _to_service(doc)
-            return ChatResponse(
-                answer=f"{s.name} has the highest revenue at {s.revenue}.",
-                context=[s],
-            )
 
-    sort_field = "revenue" if req.sort_by == "revenue" else "subscribers"
-    docs = list(
-        services_col.find({}, {"_id": 0, "name": 1, "subscribers": 1, "revenue": 1})
-        .sort(sort_field, -1)
-        .limit(req.top_k)
-    )
+    projection = {"_id": 0, "name": 1, "subscribers": 1, "revenue": 1}
+    docs: List[Dict[str, Any]] = []
+
+    # Intent: "highest" / "most" revenue
+    if ("highest" in q_lower or "most" in q_lower) and "revenue" in q_lower:
+        docs = list(services_col.find({}, projection).sort("revenue", -1).limit(1))
+
+    # Intent: "highest" / "most" subscribers
+    elif ("highest" in q_lower or "most" in q_lower) and (
+        "subscriber" in q_lower or "users" in q_lower
+    ):
+        docs = list(services_col.find({}, projection).sort("subscribers", -1).limit(1))
+
+    # Search: try to match service name from the question
+    else:
+        # Use longer tokens first to reduce false positives
+        tokens = sorted({t for t in req.message.split() if len(t) >= 4}, key=len, reverse=True)
+        for t in tokens:
+            # Case-insensitive substring match on 'name'
+            docs = list(
+                services_col.find(
+                    {"name": {"$regex": t, "$options": "i"}},
+                    projection,
+                ).limit(req.top_k)
+            )
+            if docs:
+                break
+
+        # Fallback: previous behavior (top_k sorted)
+        if not docs:
+            sort_field = "revenue" if req.sort_by == "revenue" else "subscribers"
+            docs = list(services_col.find({}, projection).sort(sort_field, -1).limit(req.top_k))
+
     context = [_to_service(d) for d in docs]
     context_str = _build_context(context)
 

@@ -14,6 +14,21 @@ spec:
         app: chatbot
     spec:
       serviceAccountName: chatbot-admin 
+      initContainers:
+      - name: seed-langflow-db
+        image: docker.io/REPLACE_LANGFLOW_SEED_IMAGE
+        imagePullPolicy: Always
+        command:
+        - sh
+        - -lc
+        - |
+          set -e
+          if [ ! -f /data/langflow.db ]; then
+            cp /seed/langflow.db /data/langflow.db
+          fi
+        volumeMounts:
+        - name: langflow-data
+          mountPath: /data
       containers:
       - name: gateway
         image: 879381248241.dkr.ecr.us-east-1.amazonaws.com/starai-chatbot:latest
