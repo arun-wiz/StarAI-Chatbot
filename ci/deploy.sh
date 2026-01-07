@@ -56,7 +56,18 @@ fi
 
 # Apply manifests (namespace -> pvc -> config -> deployment -> service -> ingress)
 kubectl apply -f manifests/namespace.yaml
-kubectl apply -f manifests/storageclass-efs.yaml
+kubectl apply -f manifests/storageclass-ebs-gp3.yaml
+DESIRED_SC="ebs-gp3-sc"
+EXISTING_SC="$(kubectl -n chatbot get pvc langflow-pvc -o jsonpath='{.spec.storageClassName}' 2>/dev/null || true)"
+if [[ -n "${EXISTING_SC}" && "${EXISTING_SC}" != "${DESIRED_SC}" ]]; then
+  echo "[WARN] langflow-pvc StorageClass is '${EXISTING_SC}' (expected '${DESIRED_SC}'). Recreating PVC..."
+  kubectl -n chatbot delete pvc langflow-pvc --ignore-not-found
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    kubectl -n chatbot get pvc langflow-pvc >/dev/null 2>&1 || break
+    sleep 2
+  done
+fi
+
 kubectl -n chatbot apply -f manifests/pvc.yaml
 kubectl -n chatbot apply -f manifests/configmap.yaml
 kubectl -n chatbot apply -f manifests/serviceaccount.yaml
