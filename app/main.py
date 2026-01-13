@@ -22,7 +22,12 @@ MAX_TOKENS  = os.getenv("MAX_TOKENS")        # e.g., "256"
 TEMPERATURE = os.getenv("TEMPERATURE")       # e.g., "0"
 
 # ========= Mongo client =========
-client = MongoClient(MONGO_URI)
+client = MongoClient(
+    MONGO_URI,
+    serverSelectionTimeoutMS=2000,
+    connectTimeoutMS=2000,
+    socketTimeoutMS=2000,
+)
 services_col = client[MONGO_DB][MONGO_COLLECTION]
 
 # ========= FastAPI =========
@@ -98,12 +103,16 @@ def _model_tweaks(context_str: str) -> Dict[str, Any]:
 # -------------------- Health & Data --------------------
 @app.get("/health")
 def health():
+    return {"ok": True}
+
+
+@app.get("/health/deps")
+def health_deps():
     try:
-        # Lazy driver; this won't hard-connect, but will raise on misconfig
         services_col.estimated_document_count()
     except Exception as e:
-        return {"ok": False, "error": f"Mongo error: {e}"}
-    return {"ok": True}
+        return {"ok": False, "mongo_ok": False, "error": f"Mongo error: {e}"}
+    return {"ok": True, "mongo_ok": True}
 
 
 @app.get("/api/services", response_model=List[Service])
