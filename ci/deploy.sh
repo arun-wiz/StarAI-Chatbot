@@ -72,7 +72,7 @@ kubectl -n chatbot apply -f manifests/pvc.yaml
 kubectl -n chatbot apply -f manifests/configmap.yaml
 kubectl -n chatbot apply -f manifests/serviceaccount.yaml
 kubectl -n chatbot apply -f manifests/clusterrolebinding.yaml
-kubectl -n chatbot apply -f manifests/deployment.yaml
+kubectl -n chatbot apply -f "${DEPLOY_FILE}"
 kubectl -n chatbot apply -f manifests/service.yaml
 if [[ "${DEMO_MODE}" == "true" ]]; then
   kubectl -n chatbot apply -f "${ING_FILE_DEMO}"
