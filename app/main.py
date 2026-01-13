@@ -197,7 +197,20 @@ async def chat(req: ChatRequest):
                 pass
             raise HTTPException(status_code=502, detail=f"Langflow error: {r.text}")
 
-        data = r.json()
+        # Langflow API should return JSON. If we get HTML/text, return a clear JSON error
+        # so the frontend doesn't crash trying to JSON.parse plain text.
+        content_type = (r.headers.get("content-type") or "").lower()
+        try:
+            data = r.json()
+        except Exception:
+            snippet = r.text[:500]
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Langflow returned a non-JSON response. "
+                    f"status={r.status_code} content-type={content_type} body_snippet={snippet!r}"
+                ),
+            )
 
     # Extract first message text; if structure differs, return the raw object for debugging
     try:
