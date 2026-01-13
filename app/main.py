@@ -126,79 +126,65 @@ def list_services():
 # -------------------- Chat --------------------
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
-    q_lower = req.message.lower().strip()
+    try:
+        q_lower = req.message.lower().strip()
 
-    projection = {"_id": 0, "name": 1, "subscribers": 1, "revenue": 1}
-    docs: List[Dict[str, Any]] = []
-
-    # Intent: "highest" / "most" revenue
-    if ("highest" in q_lower or "most" in q_lower) and "revenue" in q_lower:
-        docs = list(services_col.find({}, projection).sort("revenue", -1).limit(1))
-
-    # Intent: "highest" / "most" subscribers
-    elif ("highest" in q_lower or "most" in q_lower) and (
-        "subscriber" in q_lower or "users" in q_lower
-    ):
-        docs = list(services_col.find({}, projection).sort("subscribers", -1).limit(1))
-
-    # Search: try to match service name from the question
-    else:
-        # Use longer tokens first to reduce false positives
-        tokens = sorted({t for t in req.message.split() if len(t) >= 4}, key=len, reverse=True)
-        for t in tokens:
-            # Case-insensitive substring match on 'name'
-            docs = list(
-                services_col.find(
-                    {"name": {"$regex": t, "$options": "i"}},
-                    projection,
-                ).limit(req.top_k)
-            )
-            if docs:
-                break
-
-        # Fallback: previous behavior (top_k sorted)
-        if not docs:
-            sort_field = "revenue" if req.sort_by == "revenue" else "subscribers"
-            docs = list(services_col.find({}, projection).sort(sort_field, -1).limit(req.top_k))
-
-    context = [_to_service(d) for d in docs]
-    context_str = _build_context(context)
-
-    # Strong grounding wrapper: force the LLM to use only the provided dataset
-    grounded_message = (
-        "Using ONLY the dataset lines below (pipe-delimited), answer the question.\n"
-        "If the answer cannot be derived exactly, reply: Not in dataset.\n\n"
-        f"DATASET:\n{context_str}\n\n"
-        f"QUESTION: {req.message}\n"
-        "Return a concise answer and cite the exact service name(s) from the dataset if applicable."
-    )
-
-    payload = {
-        "input_value": grounded_message,   # goes to the flow's chat input
-        "input_type": "chat",
-        "output_type": "chat",
-        "tweaks": _model_tweaks(context_str),  # still send 'context' for your Prompt node {{context}}
-    }
-
-    url = f"{LANGFLOW_URL}/api/v1/run/{FLOW_ID}?stream=false"
-    async with httpx.AsyncClient(timeout=60.0) as http:
-        r = await http.post(url, json=payload)
-        if r.status_code >= 400:
-            # Try to soften well-known provider errors (e.g., 429 insufficient_quota)
-            try:
-                jd = r.json()
-                detail = jd.get("detail") if isinstance(jd, dict) else None
-                if detail and "insufficient_quota" in str(detail):
-                    raise HTTPException(
-                        status_code=503,
-                        detail="LLM provider reports insufficient quota. Try again later or use a key/provider with credits.",
+        # ----- Build context from Mongo (optional; allow empty context if Mongo fails) -----
+        projection = {"_id": 0, "name": 1, "subscribers": 1, "revenue": 1}
+        docs: List[Dict[str, Any]] = []
+        try:
+            if ("highest" in q_lower or "most" in q_lower) and "revenue" in q_lower:
+                docs = list(services_col.find({}, projection).sort("revenue", -1).limit(1))
+            elif ("highest" in q_lower or "most" in q_lower) and (
+                "subscriber" in q_lower or "users" in q_lower
+            ):
+                docs = list(services_col.find({}, projection).sort("subscribers", -1).limit(1))
+            else:
+                tokens = sorted({t for t in req.message.split() if len(t) >= 4}, key=len, reverse=True)
+                for t in tokens:
+                    docs = list(
+                        services_col.find(
+                            {"name": {"$regex": t, "$options": "i"}},
+                            projection,
+                        ).limit(req.top_k)
                     )
-            except Exception:
-                pass
+                    if docs:
+                        break
+
+                if not docs:
+                    sort_field = "revenue" if req.sort_by == "revenue" else "subscribers"
+                    docs = list(
+                        services_col.find({}, projection).sort(sort_field, -1).limit(req.top_k)
+                    )
+        except Exception:
+            docs = []
+
+        context = [_to_service(d) for d in docs]
+        context_str = _build_context(context)
+
+        grounded_message = (
+            "Using ONLY the dataset lines below (pipe-delimited), answer the question.\n"
+            "If the answer cannot be derived exactly, reply: Not in dataset.\n\n"
+            f"DATASET:\n{context_str}\n\n"
+            f"QUESTION: {req.message}\n"
+            "Return a concise answer and cite the exact service name(s) from the dataset if applicable."
+        )
+
+        payload = {
+            "input_value": grounded_message,
+            "input_type": "chat",
+            "output_type": "chat",
+            "tweaks": _model_tweaks(context_str),
+        }
+
+        # ----- Call Langflow -----
+        url = f"{LANGFLOW_URL}/api/v1/run/{FLOW_ID}?stream=false"
+        async with httpx.AsyncClient(timeout=60.0) as http:
+            r = await http.post(url, json=payload)
+
+        if r.status_code >= 400:
             raise HTTPException(status_code=502, detail=f"Langflow error: {r.text}")
 
-        # Langflow API should return JSON. If we get HTML/text, return a clear JSON error
-        # so the frontend doesn't crash trying to JSON.parse plain text.
         content_type = (r.headers.get("content-type") or "").lower()
         try:
             data = r.json()
@@ -212,13 +198,16 @@ async def chat(req: ChatRequest):
                 ),
             )
 
-    # Extract first message text; if structure differs, return the raw object for debugging
-    try:
-        answer = data["outputs"][0]["outputs"][0]["results"]["message"]["text"]
-    except Exception:
-        answer = str(data)
+        try:
+            answer = data["outputs"][0]["outputs"][0]["results"]["message"]["text"]
+        except Exception:
+            answer = str(data)
 
-    return ChatResponse(answer=answer, context=context)
+        return ChatResponse(answer=answer, context=context)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gateway error: {type(e).__name__}: {e}")
 
 
 # -------------------- Pass-through to Langflow's validator --------------------
