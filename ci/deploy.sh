@@ -42,7 +42,7 @@ else
 fi
 
 if [[ -n "${FLOW_ID:-}" && "${FLOW_ID}" != "REPLACE_WITH_YOUR_FLOW_ID" ]]; then
-  sed -i "s#FLOW_ID: \"REPLACE_WITH_YOUR_FLOW_ID\"#FLOW_ID: \"${FLOW_ID}\"#g" "${CFG_FILE}"
+  sed -i -E "s#^(\s*FLOW_ID:)\s*.*#\1 \"${FLOW_ID}\"#" "${CFG_FILE}"
 fi
 
 if [[ "${DEMO_MODE}" != "true" ]]; then
