@@ -14,6 +14,9 @@ spec:
         app: chatbot
     spec:
       serviceAccountName: chatbot-admin 
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
       containers:
       - name: gateway
         image: REPLACE_ECR_IMAGE
