@@ -32,7 +32,7 @@ ING_FILE_CUSTOM="manifests/ingress.yaml"
 ING_FILE_DEMO="manifests/ingress-demo.yaml"
 
 echo "[INFO] Using image: ${ECR_IMAGE_TAGGED}"
-sed -i "s#879381248241.dkr.ecr.us-east-1.amazonaws.com/starai-chatbot:latest#${ECR_IMAGE_TAGGED}#g" "${DEPLOY_FILE}"
+sed -i "s#REPLACE_ECR_IMAGE#${ECR_IMAGE_TAGGED}#g" "${DEPLOY_FILE}"
 
 if [[ -n "${LANGFLOW_SEED_IMAGE}" ]]; then
   echo "[INFO] Using Langflow seed image: ${LANGFLOW_SEED_IMAGE}"
