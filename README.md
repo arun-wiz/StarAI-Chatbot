@@ -1,5 +1,5 @@
 # Langflow 1.2.0 Chatbot on EKS (MongoDB on EC2). 
-##Test the Langflow vulnerability
+##Sample application to test the Langflow vulnerability
 
 This deploys:
 - **Langflow 1.2.0** (ClusterIP)
