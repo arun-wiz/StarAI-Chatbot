@@ -1,0 +1,48 @@
+name: Upload Wiz SARIF reports
+
+description: Upload Wiz-generated SARIF reports to GitHub Code Scanning with separate categories.
+
+runs:
+  using: composite
+  steps:
+    - name: Upload SARIF (dir scan)
+      if: ${{ hashFiles('wiz-reports/dir-scan-results.sarif') != '' }}
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: wiz-reports/dir-scan-results.sarif
+        category: wiz-dir-scan
+
+    - name: Upload SARIF (iac scan)
+      if: ${{ hashFiles('wiz-reports/iac-scan-results.sarif') != '' }}
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: wiz-reports/iac-scan-results.sarif
+        category: wiz-iac-scan
+
+    - name: Upload SARIF (sensitive data scan)
+      if: ${{ hashFiles('wiz-reports/sensitive-data-scan-results.sarif') != '' }}
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: wiz-reports/sensitive-data-scan-results.sarif
+        category: wiz-sensitive-data
+
+    - name: Upload SARIF (image scan gateway)
+      if: ${{ hashFiles('wiz-reports/image-scan-gateway.sarif') != '' }}
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: wiz-reports/image-scan-gateway.sarif
+        category: wiz-image-gateway
+
+    - name: Upload SARIF (image scan langflow)
+      if: ${{ hashFiles('wiz-reports/image-scan-langflow.sarif') != '' }}
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: wiz-reports/image-scan-langflow.sarif
+        category: wiz-image-langflow
+
+    - name: Upload SARIF (image scan seed)
+      if: ${{ hashFiles('wiz-reports/image-scan-seed.sarif') != '' }}
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: wiz-reports/image-scan-seed.sarif
+        category: wiz-image-seed
