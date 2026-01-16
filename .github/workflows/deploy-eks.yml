@@ -28,6 +28,7 @@ on:
 permissions:
   contents: read
   id-token: write
+  security-events: write
 
 jobs:
   build_scan_push_deploy:
@@ -156,6 +157,48 @@ jobs:
             docker pull "${seed_image}" || true
             ./wizcli scan container-image "${seed_image}" --policies=arun-vulnerabilities-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file image-scan-seed.sarif || true
           fi
+
+      - name: Upload SARIF (dir scan)
+        if: ${{ always() && hashFiles('dir-scan-results.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: dir-scan-results.sarif
+          category: wiz-dir-scan
+
+      - name: Upload SARIF (iac scan)
+        if: ${{ always() && hashFiles('iac-scan-results.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: iac-scan-results.sarif
+          category: wiz-iac-scan
+
+      - name: Upload SARIF (sensitive data scan)
+        if: ${{ always() && hashFiles('sensitive-data-scan-results.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sensitive-data-scan-results.sarif
+          category: wiz-sensitive-data
+
+      - name: Upload SARIF (image scan gateway)
+        if: ${{ always() && hashFiles('image-scan-gateway.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: image-scan-gateway.sarif
+          category: wiz-image-gateway
+
+      - name: Upload SARIF (image scan langflow)
+        if: ${{ always() && hashFiles('image-scan-langflow.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: image-scan-langflow.sarif
+          category: wiz-image-langflow
+
+      - name: Upload SARIF (image scan seed)
+        if: ${{ always() && hashFiles('image-scan-seed.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: image-scan-seed.sarif
+          category: wiz-image-seed
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
