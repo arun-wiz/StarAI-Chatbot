@@ -99,7 +99,15 @@ jobs:
 
 
       - name: Wiz CLI Directory Scan
-        run: ./wizcli dir scan --path . --policies=arun-vulnerabilities-policy,arun-secrets-policy,arun-iac-policy,arun-sensitive-data-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file dir-scan-results.sarif
+        run: ./wizcli dir scan --path . --policies=arun-vulnerabilities-policy,arun-secrets-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file dir-scan-results.sarif
+        continue-on-error: true
+
+      - name: Wiz CLI IaC Scan
+        run: ./wizcli iac scan --path . --types Kubernetes,GitHubActions,Terraform,Dockerfile --policies=arun-iac-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file iac-scan-results.sarif
+        continue-on-error: true
+
+      - name: Wiz CLI Sensitive Data Scan
+        run: ./wizcli dir scan --path . --sensitive-data --policies=arun-sensitive-data-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file sensitive-data-scan-results.sarif
         continue-on-error: true
 
       - name: Login to Amazon ECR
