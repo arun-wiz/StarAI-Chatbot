@@ -37,7 +37,6 @@ app = FastAPI(title="Langflow Chatbot (Mongo-grounded)", version="1.1.0")
 # -------------------- Models --------------------
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User message")
-    top_k: int = Field(3, ge=1, le=20, description="How many services to include as context")
     sort_by: Literal["revenue", "subscribers"] = Field(
         "revenue", description="Sort context by this field (desc)"
     )
@@ -133,29 +132,8 @@ async def chat(req: ChatRequest):
         projection = {"_id": 0, "name": 1, "subscribers": 1, "revenue": 1}
         docs: List[Dict[str, Any]] = []
         try:
-            if ("highest" in q_lower or "most" in q_lower) and "revenue" in q_lower:
-                docs = list(services_col.find({}, projection).sort("revenue", -1).limit(1))
-            elif ("highest" in q_lower or "most" in q_lower) and (
-                "subscriber" in q_lower or "users" in q_lower
-            ):
-                docs = list(services_col.find({}, projection).sort("subscribers", -1).limit(1))
-            else:
-                tokens = sorted({t for t in req.message.split() if len(t) >= 4}, key=len, reverse=True)
-                for t in tokens:
-                    docs = list(
-                        services_col.find(
-                            {"name": {"$regex": t, "$options": "i"}},
-                            projection,
-                        ).limit(req.top_k)
-                    )
-                    if docs:
-                        break
-
-                if not docs:
-                    sort_field = "revenue" if req.sort_by == "revenue" else "subscribers"
-                    docs = list(
-                        services_col.find({}, projection).sort(sort_field, -1).limit(req.top_k)
-                    )
+            sort_field = "revenue" if req.sort_by == "revenue" else "subscribers"
+            docs = list(services_col.find({}, projection).sort(sort_field, -1))
         except Exception:
             docs = []
 
@@ -234,70 +212,216 @@ def chat_ui():
   <title>StarAI Chat</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-    .msg { padding: .75rem 1rem; border-radius: 10px; margin: .5rem 0; }
-    .user { background: #eef; align-self: flex-end; }
-    .bot  { background: #f5f5f5; }
-    #log  { display: flex; flex-direction: column; gap: .25rem; }
-    button { padding: .5rem 1rem; }
-    form { margin-top: 1rem; display: flex; gap: .5rem; }
-    input[type="text"] { flex: 1; }
-    small { color: #666; }
+    :root {
+      --bg: #0b1220;
+      --card: rgba(255, 255, 255, 0.06);
+      --card2: rgba(255, 255, 255, 0.08);
+      --text: rgba(255, 255, 255, 0.92);
+      --muted: rgba(255, 255, 255, 0.65);
+      --stroke: rgba(255, 255, 255, 0.14);
+      --user: rgba(99, 102, 241, 0.35);
+      --bot: rgba(255, 255, 255, 0.08);
+      --accent: #7c3aed;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 800px at 20% 10%, rgba(124, 58, 237, 0.25), transparent 60%),
+        radial-gradient(900px 600px at 80% 0%, rgba(59, 130, 246, 0.22), transparent 55%),
+        var(--bg);
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 24px 16px 28px; }
+    .header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 2px 16px;
+    }
+    .title { font-size: 20px; font-weight: 700; letter-spacing: 0.2px; }
+    .subtitle { font-size: 13px; color: var(--muted); }
+    .card {
+      border: 1px solid var(--stroke);
+      background: linear-gradient(180deg, var(--card), rgba(255, 255, 255, 0.04));
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    }
+    .log {
+      height: min(70vh, 560px);
+      padding: 18px 16px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .msg {
+      max-width: 85%;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--stroke);
+      background: var(--bot);
+      white-space: pre-wrap;
+      line-height: 1.35;
+    }
+    .msg.user {
+      margin-left: auto;
+      background: var(--user);
+      border-color: rgba(99, 102, 241, 0.55);
+    }
+    .msg.bot { margin-right: auto; }
+    .meta {
+      padding: 10px 14px;
+      border-top: 1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.04));
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+    select {
+      appearance: none;
+      background: var(--card2);
+      border: 1px solid var(--stroke);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 10px;
+      outline: none;
+    }
+    .composer {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex: 1;
+      min-width: 280px;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      outline: none;
+    }
+    input[type="text"]::placeholder { color: rgba(255, 255, 255, 0.45); }
+    button {
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(124, 58, 237, 0.45);
+      background: linear-gradient(180deg, rgba(124,58,237,0.95), rgba(99,102,241,0.85));
+      color: white;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .hint { font-size: 12px; color: var(--muted); }
+    .pill {
+      font-size: 12px;
+      color: var(--muted);
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 6px 10px;
+      border-radius: 999px;
+    }
   </style>
 </head>
 <body>
-  <h1>StarAI Chat</h1>
-  <p>Grounded on MongoDB (<code>stardb.services</code>). Default context sorts by <b>revenue</b> desc.</p>
-  <div id="log"></div>
-  <form id="f" onsubmit="return false;">
-    <input id="q" type="text" placeholder="Type your question…" />
-    <label>top_k <input id="k" type="number" min="1" max="20" value="3" style="width:4rem" /></label>
-    <label>sort_by
-      <select id="sb">
-        <option value="revenue" selected>revenue</option>
-        <option value="subscribers">subscribers</option>
-      </select>
-    </label>
-    <button id="send">Send</button>
-  </form>
-  <p><small>Tip: ask “Which service has the highest revenue?”</small></p>
+  <div class="wrap">
+    <div class="header">
+      <div>
+        <div class="title">StarAI Chat</div>
+        <div class="subtitle">Grounded on MongoDB (<code>stardb.services</code>). Context sorted by <b>revenue</b> or <b>subscribers</b>.</div>
+      </div>
+      <div class="pill">Demo UI</div>
+    </div>
+
+    <div class="card">
+      <div id="log" class="log"></div>
+      <div class="meta">
+        <div class="controls">
+          <label>sort_by
+            <select id="sb">
+              <option value="revenue" selected>revenue</option>
+              <option value="subscribers">subscribers</option>
+            </select>
+          </label>
+          <div class="hint">Tip: ask “Which service has the highest revenue?”</div>
+        </div>
+
+        <form id="f" class="composer" onsubmit="return false;">
+          <input id="q" type="text" autocomplete="off" placeholder="Ask about services, revenue, subscribers…" />
+          <button id="send">Send</button>
+        </form>
+      </div>
+    </div>
+  </div>
 <script>
-const log = document.getElementById('log');
-const q   = document.getElementById('q');
-const k   = document.getElementById('k');
-const sb  = document.getElementById('sb');
-const send= document.getElementById('send');
+const log  = document.getElementById('log');
+const q    = document.getElementById('q');
+const sb   = document.getElementById('sb');
+const send = document.getElementById('send');
+
+function scrollToBottom(){
+  log.scrollTop = log.scrollHeight;
+}
 
 function add(role, text){
   const div = document.createElement('div');
   div.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
   div.textContent = text;
   log.appendChild(div);
-  window.scrollTo(0, document.body.scrollHeight);
+  scrollToBottom();
+  return div;
 }
 
-send.addEventListener('click', async () => {
+async function submit(){
   const message = q.value.trim();
   if(!message) return;
+
   add('user', message);
   q.value = '';
+  q.focus();
+  send.disabled = true;
+
+  const pending = add('bot', 'Thinking…');
   try {
     const r = await fetch('/chat', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         message,
-        top_k: parseInt(k.value || '3', 10),
         sort_by: sb.value
       })
     });
+
     const data = await r.json();
     if(!r.ok) throw new Error(data.detail || JSON.stringify(data));
-    add('bot', data.answer);
+    pending.textContent = data.answer;
   } catch (err) {
-    add('bot', 'Error: ' + err.message);
+    pending.textContent = 'Error: ' + err.message;
+  } finally {
+    send.disabled = false;
+    scrollToBottom();
+  }
+}
+
+send.addEventListener('click', submit);
+q.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    submit();
   }
 });
+
+add('bot', 'Hi! Ask a question about the services dataset.');
 </script>
 </body>
 </html>
