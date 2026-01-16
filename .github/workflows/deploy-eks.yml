@@ -99,7 +99,7 @@ jobs:
 
 
       - name: Wiz CLI Directory Scan
-        run: ./wizcli dir scan --path . --policies=arun-vulnerabilities-policy,arun-secrets-policy,arun-iac-policy,arun-sensitive-data-policy --tag github_action_run_id=${{ github.run_id }},Project=Arun-Demo --stdout human --sarif-output-file dir-scan-results.sarif
+        run: ./wizcli dir scan --path . --policies=arun-vulnerabilities-policy,arun-secrets-policy,arun-iac-policy,arun-sensitive-data-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file dir-scan-results.sarif
         continue-on-error: true
 
       - name: Login to Amazon ECR
@@ -131,15 +131,22 @@ jobs:
           langflow_image="langflowai/langflow:1.2.0"
 
           echo "[INFO] Wiz scanning gateway image: ${gateway_image}"
-          ./wizcli scan container-image "${gateway_image}" --policies=arun-vulnerabilities-policy --stdout human --sarif-output-file image-scan-gateway.sarif || true
+          ./wizcli scan container-image "${gateway_image}" --policies=arun-vulnerabilities-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file image-scan-gateway.sarif || true
 
           echo "[INFO] Wiz scanning langflow image: ${langflow_image}"
-          ./wizcli scan container-image "${langflow_image}" --policies=arun-vulnerabilities-policy --stdout human --sarif-output-file image-scan-langflow.sarif || true
+          docker pull "${langflow_image}" || true
+          ./wizcli scan container-image "${langflow_image}" --policies=arun-vulnerabilities-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file image-scan-langflow.sarif || true
 
           if [[ -n "${{ inputs.langflow_seed_image }}" ]]; then
-            seed_image="docker.io/${{ inputs.langflow_seed_image }}"
+            seed_image_raw="${{ inputs.langflow_seed_image }}"
+            if [[ "${seed_image_raw}" == *":"* ]]; then
+              seed_image="docker.io/${seed_image_raw}"
+            else
+              seed_image="docker.io/${seed_image_raw}:latest"
+            fi
             echo "[INFO] Wiz scanning langflow seed image: ${seed_image}"
-            ./wizcli scan container-image "${seed_image}" --policies=arun-vulnerabilities-policy --stdout human --sarif-output-file image-scan-seed.sarif || true
+            docker pull "${seed_image}" || true
+            ./wizcli scan container-image "${seed_image}" --policies=arun-vulnerabilities-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file image-scan-seed.sarif || true
           fi
 
       - name: Install kubectl
