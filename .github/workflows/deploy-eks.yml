@@ -50,6 +50,9 @@ jobs:
       MONGO_HOST: ${{ secrets.MONGO_HOST }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+      WIZ_CLIENT_ID: ${{ secrets.WIZ_CLIENT_ID }}
+      WIZ_CLIENT_SECRET: ${{ secrets.WIZ_CLIENT_SECRET }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,14 +83,24 @@ jobs:
           echo "img_tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "ecr_image=${ECR_ACCOUNT}.dkr.ecr.${ECR_REGION}.amazonaws.com/${ECR_REPO}" >> "$GITHUB_OUTPUT"
 
-      - name: Trivy repo scan
-        uses: aquasecurity/trivy-action@0.22.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: table
-          exit-code: '0'
-          ignore-unfixed: true
+      #- name: Trivy repo scan
+      #  uses: aquasecurity/trivy-action@0.22.0
+      #  with:
+      #   scan-type: fs
+      #    scan-ref: .
+      #    format: table
+      #    exit-code: '0'
+      #    ignore-unfixed: true
+
+      - name: Download Wiz CLI
+        run: |
+          curl -o wizcli https://downloads.wiz.io/v1/wizcli/latest/wizcli-linux-amd64 && chmod +x wizcli
+          ./wizcli version
+
+
+      - name: Wiz CLI Directory Scan
+        run: ./wizcli dir scan --path . --policies=arun-vulnerabilities-policy,arun-secrets-policy,arun-iac-policy,arun-sensitive-data-policy --tag github_action_run_id=${{ github.run_id }},Project=Arun-Demo --stdout human --sarif-output-file dir-scan-results.sarif
+        continue-on-error: true
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -102,13 +115,32 @@ jobs:
             ${{ steps.meta.outputs.ecr_image }}:latest
             ${{ steps.meta.outputs.ecr_image }}:${{ steps.meta.outputs.img_tag }}
 
-      - name: Trivy image scan (advisory)
-        uses: aquasecurity/trivy-action@0.22.0
-        with:
-          image-ref: ${{ steps.meta.outputs.ecr_image }}:${{ steps.meta.outputs.img_tag }}
-          format: table
-          exit-code: '0'
-          ignore-unfixed: true
+      # - name: Trivy image scan (advisory)
+      #  uses: aquasecurity/trivy-action@0.22.0
+      #  with:
+      #    image-ref: ${{ steps.meta.outputs.ecr_image }}:${{ steps.meta.outputs.img_tag }}
+      #    format: table
+      #    exit-code: '0'
+      #    ignore-unfixed: true
+
+      - name: Wiz CLI scan images deployed to EKS
+        run: |
+          set -euo pipefail
+
+          gateway_image="${{ steps.meta.outputs.ecr_image }}:${{ steps.meta.outputs.img_tag }}"
+          langflow_image="langflowai/langflow:1.2.0"
+
+          echo "[INFO] Wiz scanning gateway image: ${gateway_image}"
+          ./wizcli scan container-image "${gateway_image}" --policies=arun-vulnerabilities-policy --stdout human --sarif-output-file image-scan-gateway.sarif || true
+
+          echo "[INFO] Wiz scanning langflow image: ${langflow_image}"
+          ./wizcli scan container-image "${langflow_image}" --policies=arun-vulnerabilities-policy --stdout human --sarif-output-file image-scan-langflow.sarif || true
+
+          if [[ -n "${{ inputs.langflow_seed_image }}" ]]; then
+            seed_image="docker.io/${{ inputs.langflow_seed_image }}"
+            echo "[INFO] Wiz scanning langflow seed image: ${seed_image}"
+            ./wizcli scan container-image "${seed_image}" --policies=arun-vulnerabilities-policy --stdout human --sarif-output-file image-scan-seed.sarif || true
+          fi
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
