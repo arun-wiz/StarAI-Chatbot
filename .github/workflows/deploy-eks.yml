@@ -114,6 +114,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and push image to ECR
+        id: build_gateway
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -122,6 +123,38 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.ecr_image }}:latest
             ${{ steps.meta.outputs.ecr_image }}:${{ steps.meta.outputs.img_tag }}
+
+      - name: Wiz CLI docker scan + tag (gateway)
+        run: |
+          set -euo pipefail
+
+          mkdir -p wiz-reports
+
+          gateway_image="${{ steps.meta.outputs.ecr_image }}:${{ steps.meta.outputs.img_tag }}"
+          langflow_image="langflowai/langflow:1.2.0"
+          echo "[INFO] Pulling gateway image locally for docker-based scanning: ${gateway_image}"
+          docker pull "${gateway_image}" || true
+
+          echo "[INFO] Wiz docker scan (gateway): ${gateway_image}"
+          ./wizcli docker scan --image "${gateway_image}" --dockerfile app/Dockerfile --policies=arun-vulnerabilities-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file wiz-reports/docker-scan-gateway.sarif || true
+
+          echo "[INFO] Wiz docker tag (gateway): ${gateway_image} digest=${{ steps.build_gateway.outputs.digest }}"
+          ./wizcli docker tag --image "${gateway_image}" --digest "${{ steps.build_gateway.outputs.digest }}" || true
+
+          echo "[INFO] Pulling langflow image locally for docker-based scanning: ${langflow_image}"
+          docker pull "${langflow_image}" || true
+
+          echo "[INFO] Wiz docker scan (langflow): ${langflow_image}"
+          ./wizcli docker scan --image "${langflow_image}" --policies=arun-vulnerabilities-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file wiz-reports/docker-scan-langflow.sarif || true
+
+          langflow_repodiagest="$(docker inspect --format='{{index .RepoDigests 0}}' "${langflow_image}" 2>/dev/null || true)"
+          langflow_digest="${langflow_repodiagest##*@}"
+          if [[ -n "${langflow_digest}" ]]; then
+            echo "[INFO] Wiz docker tag (langflow): ${langflow_image} digest=${langflow_digest}"
+            ./wizcli docker tag --image "${langflow_image}" --digest "${langflow_digest}" || true
+          else
+            echo "[WARN] Could not determine langflow image digest (RepoDigests empty); skipping wizcli docker tag" >&2
+          fi
 
       # - name: Trivy image scan (advisory)
       #  uses: aquasecurity/trivy-action@0.22.0
@@ -141,6 +174,7 @@ jobs:
           langflow_image="langflowai/langflow:1.2.0"
 
           echo "[INFO] Wiz scanning gateway image: ${gateway_image}"
+          docker pull "${gateway_image}" || true
           ./wizcli scan container-image "${gateway_image}" --policies=arun-vulnerabilities-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file wiz-reports/image-scan-gateway.sarif || true
 
           echo "[INFO] Wiz scanning langflow image: ${langflow_image}"

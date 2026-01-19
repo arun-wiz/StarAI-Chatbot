@@ -26,6 +26,20 @@ runs:
         sarif_file: wiz-reports/sensitive-data-scan-results.sarif
         category: wiz-sensitive-data
 
+    - name: Upload SARIF (docker scan gateway)
+      if: ${{ hashFiles('wiz-reports/docker-scan-gateway.sarif') != '' }}
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: wiz-reports/docker-scan-gateway.sarif
+        category: wiz-docker-gateway
+
+    - name: Upload SARIF (docker scan langflow)
+      if: ${{ hashFiles('wiz-reports/docker-scan-langflow.sarif') != '' }}
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: wiz-reports/docker-scan-langflow.sarif
+        category: wiz-docker-langflow
+
     - name: Upload SARIF (image scan gateway)
       if: ${{ hashFiles('wiz-reports/image-scan-gateway.sarif') != '' }}
       uses: github/codeql-action/upload-sarif@v4
