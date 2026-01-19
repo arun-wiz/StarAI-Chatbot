@@ -105,7 +105,7 @@ jobs:
           set -euo pipefail
           mkdir -p wiz-reports
 
-          ./wizcli dir scan --path . --policies=arun-vulnerabilities-policy,arun-secrets-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file wiz-reports/dir-scan-results.sarif || true
+          ./wizcli dir scan --path . --policies=arun-vulnerabilities-policy,arun-secrets-policy,arun-sast-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file wiz-reports/dir-scan-results.sarif || true
           ./wizcli iac scan --path . --types Kubernetes,GitHubActions,Terraform,Dockerfile --policies=arun-iac-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file wiz-reports/iac-scan-results.sarif || true
           ./wizcli dir scan --path . --sensitive-data --policies=arun-sensitive-data-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file wiz-reports/sensitive-data-scan-results.sarif || true
         continue-on-error: true
