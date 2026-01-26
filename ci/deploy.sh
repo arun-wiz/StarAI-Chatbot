@@ -19,6 +19,25 @@ echo "[INFO] Setting kubeconfig for ${EKS_CLUSTER_NAME} (${EKS_REGION})..."
 aws eks update-kubeconfig --name "${EKS_CLUSTER_NAME}" --region "${EKS_REGION}" --kubeconfig .kubeconfig
 export KUBECONFIG="$(pwd)/.kubeconfig"
 
+# Detect EKS Auto Mode vs standard EKS (affects StorageClass provisioner)
+AUTO_MODE_ENABLED="false"
+if aws eks describe-cluster --name "${EKS_CLUSTER_NAME}" --region "${EKS_REGION}" --query 'cluster.computeConfig.enabled' --output text >/dev/null 2>&1; then
+  compute_enabled="$(aws eks describe-cluster --name "${EKS_CLUSTER_NAME}" --region "${EKS_REGION}" --query 'cluster.computeConfig.enabled' --output text 2>/dev/null || true)"
+  if [[ "${compute_enabled}" == "True" || "${compute_enabled}" == "true" ]]; then
+    AUTO_MODE_ENABLED="true"
+  fi
+fi
+
+if [[ "${AUTO_MODE_ENABLED}" == "true" ]]; then
+  echo "[INFO] Detected EKS Auto Mode cluster (computeConfig.enabled=true)"
+  STORAGECLASS_FILE="manifests/storageclass-ebs-gp3-automode.yaml"
+  DESIRED_PROVISIONER="ebs.csi.eks.amazonaws.com"
+else
+  echo "[INFO] Detected standard EKS cluster (Auto Mode disabled/not present)"
+  STORAGECLASS_FILE="manifests/storageclass-ebs-gp3.yaml"
+  DESIRED_PROVISIONER="ebs.csi.aws.com"
+fi
+
 # Render manifests
 DEPLOY_FILE_SEEDED="manifests/deployment.yaml"
 DEPLOY_FILE_NOSEED="manifests/deployment-noseed.yaml"
@@ -56,8 +75,20 @@ fi
 
 # Apply manifests (namespace -> pvc -> config -> deployment -> service -> ingress)
 kubectl apply -f manifests/namespace.yaml
-kubectl apply -f manifests/storageclass-ebs-gp3.yaml
 DESIRED_SC="ebs-gp3-sc"
+
+# StorageClass provisioner is immutable; if it exists with the wrong provisioner, recreate it.
+EXISTING_PROVISIONER="$(kubectl get storageclass "${DESIRED_SC}" -o jsonpath='{.provisioner}' 2>/dev/null || true)"
+if [[ -n "${EXISTING_PROVISIONER}" && "${EXISTING_PROVISIONER}" != "${DESIRED_PROVISIONER}" ]]; then
+  echo "[WARN] StorageClass '${DESIRED_SC}' provisioner is '${EXISTING_PROVISIONER}' (expected '${DESIRED_PROVISIONER}'). Recreating StorageClass..."
+  kubectl delete storageclass "${DESIRED_SC}" --ignore-not-found
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    kubectl get storageclass "${DESIRED_SC}" >/dev/null 2>&1 || break
+    sleep 2
+  done
+fi
+kubectl apply -f "${STORAGECLASS_FILE}"
+
 EXISTING_SC="$(kubectl -n chatbot get pvc langflow-pvc -o jsonpath='{.spec.storageClassName}' 2>/dev/null || true)"
 if [[ -n "${EXISTING_SC}" && "${EXISTING_SC}" != "${DESIRED_SC}" ]]; then
   echo "[WARN] langflow-pvc StorageClass is '${EXISTING_SC}' (expected '${DESIRED_SC}'). Recreating PVC..."
