@@ -14,6 +14,7 @@ MONGO_DB         = os.getenv("MONGO_DB", "stardb")
 MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "services")
 LANGFLOW_URL     = os.getenv("LANGFLOW_URL", "http://127.0.0.1:7860")
 FLOW_ID          = os.getenv("FLOW_ID", "REPLACE_WITH_YOUR_FLOW_ID")
+LANGFLOW_API_KEY = os.getenv("LANGFLOW_API_KEY", "")
 
 # Optional model overrides (set in ConfigMap if you want)
 LLM_NODE_ID = os.getenv("LLM_NODE_ID")       # e.g., "ChatOpenAI-abc123" from Langflow UI
@@ -99,6 +100,13 @@ def _model_tweaks(context_str: str) -> Dict[str, Any]:
     return tweaks
 
 
+def _langflow_headers() -> Dict[str, str]:
+    headers: Dict[str, str] = {}
+    if LANGFLOW_API_KEY:
+        headers["x-api-key"] = LANGFLOW_API_KEY
+    return headers
+
+
 # -------------------- Health & Data --------------------
 @app.get("/health")
 def health():
@@ -158,7 +166,7 @@ async def chat(req: ChatRequest):
         # ----- Call Langflow -----
         url = f"{LANGFLOW_URL}/api/v1/run/{FLOW_ID}?stream=false"
         async with httpx.AsyncClient(timeout=60.0) as http:
-            r = await http.post(url, json=payload)
+            r = await http.post(url, json=payload, headers=_langflow_headers())
 
         if r.status_code >= 400:
             raise HTTPException(status_code=502, detail=f"Langflow error: {r.text}")
@@ -197,8 +205,16 @@ class ValidateCodeRequest(BaseModel):
 async def validate_code(req: ValidateCodeRequest):
     url = f"{LANGFLOW_URL}/api/v1/validate/code"
     async with httpx.AsyncClient(timeout=30.0) as http:
-        r = await http.post(url, json=req.model_dump())
-        return r.json(), r.status_code
+        r = await http.post(url, json=req.model_dump(), headers=_langflow_headers())
+        try:
+            return r.json(), r.status_code
+        except Exception:
+            return {
+                "detail": "Langflow validator returned a non-JSON response.",
+                "status": r.status_code,
+                "content_type": r.headers.get("content-type"),
+                "body_snippet": r.text[:500],
+            }, r.status_code
 
 
 # -------------------- Minimal browser chat UI (GET /) --------------------
@@ -402,7 +418,14 @@ async function submit(){
       })
     });
 
-    const data = await r.json();
+    const contentType = (r.headers.get('content-type') || '').toLowerCase();
+    let data;
+    if (contentType.includes('application/json')) {
+      data = await r.json();
+    } else {
+      const text = await r.text();
+      throw new Error(`HTTP ${r.status}: ${text.slice(0, 300)}`);
+    }
     if(!r.ok) throw new Error(data.detail || JSON.stringify(data));
     pending.textContent = data.answer;
   } catch (err) {

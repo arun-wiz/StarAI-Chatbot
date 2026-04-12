@@ -40,6 +40,7 @@ Configure the following in your GitHub repo:
 - **MONGO_PASS**
 - **MONGO_HOST**
 - **OPENAI_API_KEY** (optional)
+- **LANGFLOW_API_KEY** (optional, but may be required by newer Langflow auth defaults)
 
  The IAM role should trust GitHub's OIDC provider and allow:
  - `ecr:DescribeRepositories`, `ecr:CreateRepository` (for ephemeral accounts)
@@ -50,11 +51,28 @@ Configure the following in your GitHub repo:
  When `demo_mode=true`, the deployment uses `manifests/ingress-demo.yaml` (no host / no ACM cert) and prints a demo URL like:
  `http://<alb-dns-name>/`
 
+## Langflow API auth in Kubernetes
+
+Some Langflow versions return an HTML login page for API calls unless you pass an `x-api-key`.
+If your chatbot shows an error like `Unexpected token '<'`, create this secret so the FastAPI gateway can authenticate to the sidecar:
+
+```bash
+kubectl -n chatbot create secret generic langflow-api-key \
+  --from-literal=LANGFLOW_API_KEY='your-langflow-api-key'
+```
+
+Then restart the deployment:
+
+```bash
+kubectl -n chatbot rollout restart deploy/chatbot
+```
+
  ## Langflow seed image (ephemeral clusters)
  
  Since the entire cluster is ephemeral, Langflow's SQLite DB is seeded via an initContainer.
  Seeding is optional:
  - If you provide `langflow_seed_image`, the deployment seeds `/data/langflow.db` before Langflow starts.
+ - The init container also ensures `/data/langflow.db` is writable by the Langflow process after it is copied to the PVC.
  - If you omit it, Langflow will start with a fresh DB and you can build the flow in the running environment.
 
  ### Build the flow in EKS and export `langflow.db`
