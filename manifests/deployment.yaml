@@ -29,6 +29,7 @@ spec:
           if [ ! -f /data/langflow.db ]; then
             cp /seed/langflow.db /data/langflow.db
           fi
+          chmod 664 /data/langflow.db
         volumeMounts:
         - name: langflow-data
           mountPath: /data
@@ -44,6 +45,13 @@ spec:
             name: chatbot-config
         - secretRef:
             name: starai-db-secret
+        env:
+        - name: LANGFLOW_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: langflow-api-key
+              key: LANGFLOW_API_KEY
+              optional: true
         readinessProbe:
           httpGet: { path: /health, port: http }
           initialDelaySeconds: 15
