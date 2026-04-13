@@ -1,0 +1,7 @@
+interface:
+  display_name: "Wiz Security"
+  short_description: "Use Wiz MCP first, then raw scan APIs"
+  default_prompt: "Use $wiz-security to scan this repo with Wiz and explain the top findings."
+
+policy:
+  allow_implicit_invocation: true
