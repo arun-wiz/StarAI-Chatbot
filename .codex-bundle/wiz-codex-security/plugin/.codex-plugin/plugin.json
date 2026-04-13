@@ -1,0 +1,46 @@
+{
+  "name": "wiz-security",
+  "version": "0.1.0",
+  "description": "Wiz security skills for code-to-cloud risk analysis with MCP-first and API fallback workflows",
+  "author": {
+    "name": "Wiz",
+    "email": "support@wiz.io",
+    "url": "https://www.wiz.io/"
+  },
+  "homepage": "https://github.com/wiz-sec/wiz-ai-skills",
+  "repository": "https://github.com/wiz-sec/wiz-ai-skills",
+  "license": "SEE LICENSE IN REPOSITORY",
+  "keywords": [
+    "wiz",
+    "security",
+    "mcp",
+    "remediation",
+    "vulnerability-management"
+  ],
+  "skills": "./wiz-security/skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Wiz Security",
+    "shortDescription": "Use Wiz MCP first, then fall back to raw scan APIs",
+    "longDescription": "Brings Wiz review and remediation skills into Codex and includes a fallback path that publishes a Wiz scan and fetches raw findings from the Wiz API when MCP is unavailable. Current Codex installs should configure Wiz MCP in ~/.codex/config.toml.",
+    "developerName": "Wiz",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://www.wiz.io/",
+    "privacyPolicyURL": "https://www.wiz.io/privacy-policy",
+    "termsOfServiceURL": "https://www.wiz.io/terms-of-use",
+    "defaultPrompt": [
+      "Use Wiz to scan this repo and walk me through the top risks",
+      "Use Wiz to remediate the highest severity issue in this repo",
+      "Check whether this repo has active Wiz security findings"
+    ],
+    "brandColor": "#2D5BFF",
+    "composerIcon": "./assets/wiz-security.svg",
+    "logo": "./assets/wiz-security.svg",
+    "screenshots": []
+  }
+}

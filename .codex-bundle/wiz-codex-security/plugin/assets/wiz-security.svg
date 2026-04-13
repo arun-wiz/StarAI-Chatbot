@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Wiz Security">
+  <rect width="128" height="128" rx="24" fill="#2D5BFF"/>
+  <path d="M64 22l28 10v22c0 23-13 38-28 52C49 92 36 77 36 54V32l28-10z" fill="#fff"/>
+  <path d="M49 57l10 11 20-24" fill="none" stroke="#2D5BFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"/>
+</svg>
