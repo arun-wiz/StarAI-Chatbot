@@ -32,7 +32,7 @@ Generic application variables that remain shared across clouds:
 - `LANGFLOW_SEED_IMAGE`
 - `MONGO_USER`
 - `MONGO_PASS`
-- `MONGO_HOST`
+- `AWS_MONGO_HOST` for the EKS workflow
 - `OPENAI_API_KEY`
 
 ## Backward Compatibility
@@ -46,6 +46,7 @@ The AWS/EKS scripts still accept the legacy names:
 - `ECR_IMAGE_TAGGED`
 - `PUBLIC_DOMAIN`
 - `ALB_ACM_ARN`
+- `MONGO_HOST`
 
 The new AWS-prefixed names take precedence when both are present.
 
