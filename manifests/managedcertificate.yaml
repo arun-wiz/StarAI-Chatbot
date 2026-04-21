@@ -1,0 +1,8 @@
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: REPLACE_MANAGED_CERT_NAME
+  namespace: chatbot
+spec:
+  domains:
+    - REPLACE_PUBLIC_DOMAIN

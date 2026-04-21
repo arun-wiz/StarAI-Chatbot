@@ -52,19 +52,19 @@ spec:
     REPO_DIR           = 'StarAI-Chatbot'
 
     // ---- AWS Account(EKS/ECR) ----
-    EKS_CLUSTER_NAME_B = 'starai-eks'
-    EKS_REGION_B       = 'us-east-1'
-    ECR_ACCOUNT        = '879381248241'
-    ECR_REGION         = 'us-east-1'
-    ECR_REPO           = 'starai-chatbot'
-    ECR_IMAGE          = "${ECR_ACCOUNT}.dkr.ecr.${ECR_REGION}.amazonaws.com/${ECR_REPO}:latest"
+    AWS_EKS_CLUSTER_NAME = 'starai-eks'
+    AWS_EKS_REGION       = 'us-east-1'
+    AWS_ECR_ACCOUNT      = '879381248241'
+    AWS_ECR_REGION       = 'us-east-1'
+    AWS_ECR_REPO         = 'starai-chatbot'
+    AWS_ECR_IMAGE        = "${AWS_ECR_ACCOUNT}.dkr.ecr.${AWS_ECR_REGION}.amazonaws.com/${AWS_ECR_REPO}:latest"
 
     // Optional DockerHub mirror (set DOCKERHUB_IMAGE empty to skip)
     DOCKERHUB_IMAGE    = 'arunrana1214/starai-chatbot:latest'
 
     // Ingress
-    PUBLIC_DOMAIN      = 'staraichat.sgcybersec.com'
-    ALB_ACM_ARN        = 'arn:aws:acm:us-east-1:879381248241:certificate/35b69081-e4df-4f8f-b51b-d7f5746a0d97'
+    AWS_PUBLIC_DOMAIN  = 'staraichat.sgcybersec.com'
+    AWS_ALB_ACM_ARN    = 'arn:aws:acm:us-east-1:879381248241:certificate/35b69081-e4df-4f8f-b51b-d7f5746a0d97'
 
     // Langflow Flow ID (or override via parameter)
     FLOW_ID            = 'fcc765ae-a6ed-4f39-9c8f-d0a2ee793499'
@@ -150,7 +150,7 @@ spec:
               env.AWS_ACCESS_KEY_ID     = creds.data.access_key_id
               env.AWS_SECRET_ACCESS_KEY = creds.data.secret_access_key
               env.AWS_SESSION_TOKEN     = creds.data.session_token
-              env.AWS_DEFAULT_REGION    = env.ECR_REGION
+              env.AWS_DEFAULT_REGION    = env.AWS_ECR_REGION
             }
             sh 'aws sts get-caller-identity'
           }
@@ -166,8 +166,8 @@ spec:
             def ts  = sh(returnStdout: true, script: "date -u +%Y%m%d%H%M%S").trim()
             env.IMG_TAG         = "${env.BUILD_NUMBER}-${ts}-${sha}"
             env.IMG_TAR         = "/img-out/${env.IMG_TAG}.tar"
-            env.DH_IMAGE_TAGGED = "${env.DOCKERHUB_IMAGE}".replace(':latest', ":${env.IMG_TAG}")
-            env.ECR_IMAGE_TAGGED= "${env.ECR_IMAGE}".replace(':latest', ":${env.IMG_TAG}")
+            env.DH_IMAGE_TAGGED      = "${env.DOCKERHUB_IMAGE}".replace(':latest', ":${env.IMG_TAG}")
+            env.AWS_ECR_IMAGE_TAGGED = "${env.AWS_ECR_IMAGE}".replace(':latest', ":${env.IMG_TAG}")
             echo "[INFO] Using image tag: ${env.IMG_TAG}"
           }
         }
@@ -240,9 +240,9 @@ spec:
                 --dockerfile=app/Dockerfile \
                 --context=. \
                 --destination=${DH_IMAGE_TAGGED} \
-                --destination=${ECR_IMAGE_TAGGED} \
+                --destination=${AWS_ECR_IMAGE_TAGGED} \
                 --destination=${DOCKERHUB_IMAGE} \
-                --destination=${ECR_IMAGE}
+                --destination=${AWS_ECR_IMAGE}
               '''
           }
         }
@@ -258,7 +258,7 @@ spec:
             conjurSecretCredential(credentialsId: 'MongoDB-StarAI-Address', variable: 'MONGO_HOST')
           ]) {
             dir("${env.REPO_DIR}") {
-              sh 'bash -lc "chmod +x ci/apply_db_secret.sh && ./ci/apply_db_secret.sh"'
+              sh 'bash -lc "chmod +x ci/apply_aws_eks_secrets.sh && ./ci/apply_aws_eks_secrets.sh"'
               script { env.KUBECONFIG = "${env.WORKSPACE}/${env.REPO_DIR}/.kubeconfig" }
             }
           }
@@ -272,18 +272,18 @@ spec:
           dir("${env.REPO_DIR}") {
             script {
               if (params.FLOW_ID_PARAM?.trim()) { env.FLOW_ID = params.FLOW_ID_PARAM }
-              if (params.PUBLIC_DOMAIN_PARAM?.trim()) { env.PUBLIC_DOMAIN = params.PUBLIC_DOMAIN_PARAM }
+              if (params.PUBLIC_DOMAIN_PARAM?.trim()) { env.AWS_PUBLIC_DOMAIN = params.PUBLIC_DOMAIN_PARAM }
             }
             withEnv([
-              "EKS_CLUSTER_NAME_B=${env.EKS_CLUSTER_NAME_B}",
-              "EKS_REGION_B=${env.EKS_REGION_B}",
-              "ECR_IMAGE=${env.ECR_IMAGE}",
-              "ECR_IMAGE_TAGGED=${env.ECR_IMAGE_TAGGED}",
-              "PUBLIC_DOMAIN=${env.PUBLIC_DOMAIN}",
-              "ALB_ACM_ARN=${env.ALB_ACM_ARN}",
+              "AWS_EKS_CLUSTER_NAME=${env.AWS_EKS_CLUSTER_NAME}",
+              "AWS_EKS_REGION=${env.AWS_EKS_REGION}",
+              "AWS_ECR_IMAGE=${env.AWS_ECR_IMAGE}",
+              "AWS_ECR_IMAGE_TAGGED=${env.AWS_ECR_IMAGE_TAGGED}",
+              "AWS_PUBLIC_DOMAIN=${env.AWS_PUBLIC_DOMAIN}",
+              "AWS_ALB_ACM_ARN=${env.AWS_ALB_ACM_ARN}",
               "FLOW_ID=${env.FLOW_ID}"
             ]) {
-              sh 'bash -lc "chmod +x ci/deploy.sh && ./ci/deploy.sh"'
+              sh 'bash -lc "chmod +x ci/deploy_aws_eks.sh && ./ci/deploy_aws_eks.sh"'
             }
           }
         }

@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chatbot
+  namespace: chatbot
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.allow-http: "true"
+    networking.gke.io/managed-certificates: REPLACE_MANAGED_CERT_NAME
+    # REPLACE_GKE_STATIC_IP_ANNOTATION
+spec:
+  rules:
+    - host: REPLACE_PUBLIC_DOMAIN
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chatbot
+                port:
+                  number: 80
