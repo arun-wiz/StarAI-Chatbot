@@ -48,7 +48,7 @@ Repository variables:
 
 - `GCP_PROJECT_ID`
 - `GAR_LOCATION`
-- `GAR_REPOSITORY`
+- `GAR_REPOSITORY` (repository name only, for example `star-ai`)
 - `GKE_CLUSTER_NAME`
 - `GKE_LOCATION`
 - `FLOW_ID`
@@ -69,15 +69,17 @@ Repository secrets:
 The `Deploy to GKE` workflow:
 
 1. Authenticates to GCP with Workload Identity Federation.
-2. Logs in to Artifact Registry.
-3. Builds and pushes the gateway image to GAR.
-4. Fetches kubeconfig for the target GKE cluster.
-5. Creates or updates Mongo/OpenAI Kubernetes secrets.
-6. Applies the GKE-specific PVC, Service, Ingress, and optional ManagedCertificate.
-7. Rolls the `chatbot` deployment and waits for ingress IP allocation.
+2. Ensures the Artifact Registry Docker repository exists, creating it when missing.
+3. Logs in to Artifact Registry.
+4. Builds and pushes the gateway image to GAR.
+5. Fetches kubeconfig for the target GKE cluster.
+6. Creates or updates Mongo/OpenAI Kubernetes secrets.
+7. Applies the GKE-specific PVC, Service, Ingress, and optional ManagedCertificate.
+8. Rolls the `chatbot` deployment and waits for ingress IP allocation.
 
 ## Notes
 
 - `demo_mode=true` keeps the ingress HTTP-only and does not require DNS or TLS.
 - `demo_mode=false` expects a DNS name and creates a Google-managed certificate resource.
+- The GCP service account used by GitHub Actions needs Artifact Registry admin-capable permissions to create the repository on first deploy.
 - The GKE deploy path intentionally does not apply the repo's `clusterrolebinding.yaml`; the current application code does not call the Kubernetes API, so cluster-admin on the workload was unnecessary for this path.

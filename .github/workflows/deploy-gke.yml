@@ -72,6 +72,11 @@ jobs:
             fi
           done
 
+          if [[ "${GAR_REPOSITORY}" == *"/"* ]]; then
+            echo "GAR_REPOSITORY must be only the Artifact Registry repository name, not a path: ${GAR_REPOSITORY}" >&2
+            exit 1
+          fi
+
           required_secrets=(
             GCP_WORKLOAD_IDENTITY_PROVIDER
             GCP_SERVICE_ACCOUNT
@@ -105,6 +110,23 @@ jobs:
         with:
           version: ">= 416.0.0"
           project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Ensure Artifact Registry repository exists
+        run: |
+          set -euo pipefail
+
+          if gcloud artifacts repositories describe "${GAR_REPOSITORY}" \
+            --location "${GAR_LOCATION}" \
+            --project "${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            echo "Artifact Registry repository already exists: ${GAR_REPOSITORY}"
+          else
+            echo "Creating Artifact Registry repository: ${GAR_REPOSITORY}"
+            gcloud artifacts repositories create "${GAR_REPOSITORY}" \
+              --repository-format=docker \
+              --location "${GAR_LOCATION}" \
+              --description="Docker repository for StarAI Chatbot images" \
+              --project "${GCP_PROJECT_ID}"
+          fi
 
       - name: Login to Artifact Registry
         uses: docker/login-action@v4
