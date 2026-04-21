@@ -43,7 +43,8 @@ Legacy aliases such as `EKS_CLUSTER_NAME`, `EKS_REGION`, `ECR_ACCOUNT`, `ECR_REG
 - **AWS_ROLE_TO_ASSUME** (IAM Role ARN for OIDC)
 - **MONGO_USER**
 - **MONGO_PASS**
-- **MONGO_HOST**
+- **AWS_MONGO_HOST** (preferred for the EKS workflow)
+- **MONGO_HOST** (legacy/shared fallback)
 - **OPENAI_API_KEY** (optional)
 - **LANGFLOW_API_KEY** (optional, but may be required by newer Langflow auth defaults)
 

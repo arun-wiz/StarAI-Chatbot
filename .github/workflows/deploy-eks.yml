@@ -49,7 +49,7 @@ jobs:
 
       MONGO_USER: ${{ secrets.MONGO_USER }}
       MONGO_PASS: ${{ secrets.MONGO_PASS }}
-      MONGO_HOST: ${{ secrets.MONGO_HOST }}
+      MONGO_HOST: ${{ secrets.AWS_MONGO_HOST || secrets.MONGO_HOST }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       WIZ_CLIENT_ID: ${{ secrets.WIZ_CLIENT_ID }}

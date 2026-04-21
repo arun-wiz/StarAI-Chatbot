@@ -54,7 +54,7 @@ jobs:
           GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           MONGO_USER: ${{ secrets.MONGO_USER }}
           MONGO_PASS: ${{ secrets.MONGO_PASS }}
-          MONGO_HOST: ${{ secrets.MONGO_HOST }}
+          MONGO_HOST: ${{ secrets.GCP_MONGO_HOST || secrets.MONGO_HOST }}
         run: |
           set -euo pipefail
 
@@ -165,7 +165,7 @@ jobs:
         env:
           MONGO_USER: ${{ secrets.MONGO_USER }}
           MONGO_PASS: ${{ secrets.MONGO_PASS }}
-          MONGO_HOST: ${{ secrets.MONGO_HOST }}
+          MONGO_HOST: ${{ secrets.GCP_MONGO_HOST || secrets.MONGO_HOST }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           chmod +x ci/apply_gke_secrets.sh

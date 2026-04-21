@@ -60,7 +60,8 @@ Repository secrets:
 - `GCP_SERVICE_ACCOUNT`
 - `MONGO_USER`
 - `MONGO_PASS`
-- `MONGO_HOST`
+- `GCP_MONGO_HOST` (preferred for the GKE workflow)
+- `MONGO_HOST` (legacy/shared fallback)
 - `OPENAI_API_KEY` (optional)
 
 ## Workflow Behavior
