@@ -1,0 +1,188 @@
+name: Deploy to GKE
+
+on:
+  workflow_dispatch:
+    inputs:
+      demo_mode:
+        description: Deploy HTTP-only ingress without custom DNS/TLS
+        required: true
+        default: true
+        type: boolean
+      public_domain:
+        description: DNS name for the GKE ingress when demo_mode is false
+        required: false
+        type: string
+      managed_certificate_name:
+        description: ManagedCertificate resource name when demo_mode is false
+        required: false
+        default: chatbot-managed-cert
+        type: string
+      flow_id:
+        description: Override FLOW_ID from repository variables
+        required: false
+        type: string
+      langflow_seed_image:
+        description: Optional fully-qualified seed image reference for langflow.db
+        required: false
+        type: string
+      image_tag:
+        description: Optional image tag override for the gateway container
+        required: false
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GAR_LOCATION: ${{ vars.GAR_LOCATION }}
+      GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY }}
+      GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+      GKE_LOCATION: ${{ vars.GKE_LOCATION }}
+      GKE_STATIC_IP_NAME: ${{ vars.GKE_STATIC_IP_NAME }}
+      DEFAULT_FLOW_ID: ${{ vars.FLOW_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate repo configuration
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          MONGO_USER: ${{ secrets.MONGO_USER }}
+          MONGO_PASS: ${{ secrets.MONGO_PASS }}
+          MONGO_HOST: ${{ secrets.MONGO_HOST }}
+        run: |
+          set -euo pipefail
+
+          required_vars=(
+            GCP_PROJECT_ID
+            GAR_LOCATION
+            GAR_REPOSITORY
+            GKE_CLUSTER_NAME
+            GKE_LOCATION
+          )
+          for name in "${required_vars[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing repository variable: ${name}" >&2
+              exit 1
+            fi
+          done
+
+          required_secrets=(
+            GCP_WORKLOAD_IDENTITY_PROVIDER
+            GCP_SERVICE_ACCOUNT
+            MONGO_USER
+            MONGO_PASS
+            MONGO_HOST
+          )
+          for name in "${required_secrets[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing repository secret: ${name}" >&2
+              exit 1
+            fi
+          done
+
+          if [ "${{ inputs.demo_mode }}" != "true" ] && [ -z "${{ inputs.public_domain }}" ]; then
+            echo "public_domain is required when demo_mode=false" >&2
+            exit 1
+          fi
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: ">= 416.0.0"
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Login to Artifact Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.GAR_LOCATION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - id: vars
+        name: Compute deployment variables
+        env:
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+          INPUT_FLOW_ID: ${{ inputs.flow_id }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${INPUT_IMAGE_TAG}" ]; then
+            IMG_TAG="${INPUT_IMAGE_TAG}"
+          else
+            IMG_TAG="${GITHUB_RUN_NUMBER}-$(git rev-parse --short=12 HEAD)"
+          fi
+
+          if [ -n "${INPUT_FLOW_ID}" ]; then
+            FLOW_ID="${INPUT_FLOW_ID}"
+          else
+            FLOW_ID="${DEFAULT_FLOW_ID:-}"
+          fi
+
+          GAR_IMAGE="${GAR_LOCATION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/starai-chatbot"
+
+          echo "img_tag=${IMG_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "flow_id=${FLOW_ID}" >> "${GITHUB_OUTPUT}"
+          echo "gar_image=${GAR_IMAGE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push gateway image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: app/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.vars.outputs.gar_image }}:${{ steps.vars.outputs.img_tag }}
+            ${{ steps.vars.outputs.gar_image }}:latest
+
+      - id: get-credentials
+        name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v3
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_LOCATION }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          namespace: chatbot
+
+      - name: Apply runtime secrets
+        env:
+          MONGO_USER: ${{ secrets.MONGO_USER }}
+          MONGO_PASS: ${{ secrets.MONGO_PASS }}
+          MONGO_HOST: ${{ secrets.MONGO_HOST }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          chmod +x ci/apply_gke_secrets.sh
+          ./ci/apply_gke_secrets.sh
+
+      - name: Deploy to GKE
+        env:
+          GCP_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
+          GKE_CLUSTER_NAME: ${{ env.GKE_CLUSTER_NAME }}
+          GKE_LOCATION: ${{ env.GKE_LOCATION }}
+          GKE_STATIC_IP_NAME: ${{ env.GKE_STATIC_IP_NAME }}
+          GAR_IMAGE_TAGGED: ${{ steps.vars.outputs.gar_image }}:${{ steps.vars.outputs.img_tag }}
+          DEMO_MODE: ${{ inputs.demo_mode }}
+          PUBLIC_DOMAIN: ${{ inputs.public_domain }}
+          MANAGED_CERT_NAME: ${{ inputs.managed_certificate_name }}
+          LANGFLOW_SEED_IMAGE: ${{ inputs.langflow_seed_image }}
+          FLOW_ID: ${{ steps.vars.outputs.flow_id }}
+        run: |
+          chmod +x ci/deploy_gke.sh
+          ./ci/deploy_gke.sh

@@ -1,6 +1,9 @@
 # Langflow 1.2.0 Chatbot on EKS (MongoDB on EC2). 
 ##Sample application to test the Langflow vulnerability
 
+For the AWS/EKS deployment path, see [docs/aws-eks-deployment.md](docs/aws-eks-deployment.md).
+For the GKE/GCP deployment path and the AWS-to-GCP deployment mapping, see [docs/gke-deployment.md](docs/gke-deployment.md).
+
 This deploys:
 - **Langflow 1.2.0** (ClusterIP)
 - **FastAPI Gateway** (ClusterIP) exposing:
@@ -21,12 +24,14 @@ MongoDB runs on **your EC2**. The app connects via `MONGO_URI`.
 Configure the following in your GitHub repo:
  
 **Repo Variables**
-- **EKS_CLUSTER_NAME**
-- **EKS_REGION**
-- **ECR_ACCOUNT**
-- **ECR_REGION**
-- **ECR_REPO**
+- **AWS_EKS_CLUSTER_NAME**
+- **AWS_EKS_REGION**
+- **AWS_ECR_ACCOUNT**
+- **AWS_ECR_REGION**
+- **AWS_ECR_REPO**
 - **FLOW_ID**
+
+Legacy aliases such as `EKS_CLUSTER_NAME`, `EKS_REGION`, `ECR_ACCOUNT`, `ECR_REGION`, and `ECR_REPO` are still supported by the AWS/EKS scripts, but the repo now prefers the explicit AWS/EKS names above.
   
  The workflow is intended to be run manually via `workflow_dispatch`.
  
