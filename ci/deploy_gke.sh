@@ -42,14 +42,27 @@ replace_all() {
   rm -f "${file}.bak"
 }
 
+set_manifest_namespace() {
+  local file="$1"
+  replace_all "namespace: chatbot" "namespace: ${K8S_NAMESPACE}" "${file}"
+}
+
+set_namespace_name() {
+  local file="$1"
+  replace_all "name: chatbot" "name: ${K8S_NAMESPACE}" "${file}"
+}
+
 if [[ -n "${LANGFLOW_SEED_IMAGE}" ]]; then
   copy_manifest manifests/deployment.yaml deployment.yaml
 else
   copy_manifest manifests/deployment-noseed.yaml deployment.yaml
 fi
+copy_manifest manifests/namespace.yaml namespace.yaml
 copy_manifest manifests/configmap.yaml configmap.yaml
 copy_manifest manifests/pvc-gke.yaml pvc.yaml
 copy_manifest manifests/service-gke.yaml service.yaml
+copy_manifest manifests/serviceaccount.yaml serviceaccount.yaml
+copy_manifest manifests/clusterrolebinding.yaml clusterrolebinding.yaml
 
 replace_all "REPLACE_ECR_IMAGE" "${GAR_IMAGE_TAGGED}" "${tmp_dir}/deployment.yaml"
 
@@ -81,8 +94,24 @@ else
   fi
 fi
 
-kubectl apply -f manifests/namespace.yaml
-kubectl -n "${K8S_NAMESPACE}" apply -f manifests/serviceaccount.yaml
+set_namespace_name "${tmp_dir}/namespace.yaml"
+set_manifest_namespace "${tmp_dir}/serviceaccount.yaml"
+set_manifest_namespace "${tmp_dir}/clusterrolebinding.yaml"
+set_manifest_namespace "${tmp_dir}/pvc.yaml"
+set_manifest_namespace "${tmp_dir}/configmap.yaml"
+set_manifest_namespace "${tmp_dir}/deployment.yaml"
+set_manifest_namespace "${tmp_dir}/service.yaml"
+set_manifest_namespace "${tmp_dir}/ingress.yaml"
+
+replace_all "name: chatbot-admin-clusterrolebinding" "name: ${K8S_NAMESPACE}-chatbot-admin-clusterrolebinding" "${tmp_dir}/clusterrolebinding.yaml"
+
+if [[ "${DEMO_MODE}" != "true" ]]; then
+  set_manifest_namespace "${tmp_dir}/managedcertificate.yaml"
+fi
+
+kubectl apply -f "${tmp_dir}/namespace.yaml"
+kubectl -n "${K8S_NAMESPACE}" apply -f "${tmp_dir}/serviceaccount.yaml"
+kubectl apply -f "${tmp_dir}/clusterrolebinding.yaml"
 kubectl -n "${K8S_NAMESPACE}" apply -f "${tmp_dir}/pvc.yaml"
 kubectl -n "${K8S_NAMESPACE}" apply -f "${tmp_dir}/configmap.yaml"
 kubectl -n "${K8S_NAMESPACE}" apply -f "${tmp_dir}/deployment.yaml"

@@ -74,7 +74,7 @@ The `Deploy to GKE` workflow:
 4. Builds and pushes the gateway image to GAR.
 5. Fetches kubeconfig for the target GKE cluster.
 6. Creates or updates Mongo/OpenAI Kubernetes secrets.
-7. Applies the GKE-specific PVC, Service, Ingress, and optional ManagedCertificate.
+7. Applies the namespace, service account, cluster role binding, GKE-specific PVC, Service, Ingress, and optional ManagedCertificate.
 8. Rolls the `chatbot` deployment and waits for ingress IP allocation.
 
 ## Notes
@@ -82,4 +82,5 @@ The `Deploy to GKE` workflow:
 - `demo_mode=true` keeps the ingress HTTP-only and does not require DNS or TLS.
 - `demo_mode=false` expects a DNS name and creates a Google-managed certificate resource.
 - The GCP service account used by GitHub Actions needs Artifact Registry admin-capable permissions to create the repository on first deploy.
-- The GKE deploy path intentionally does not apply the repo's `clusterrolebinding.yaml`; the current application code does not call the Kubernetes API, so cluster-admin on the workload was unnecessary for this path.
+- The GKE deploy path now applies the same `clusterrolebinding.yaml` as EKS so the `chatbot-admin` service account is bound to `cluster-admin`.
+- That RBAC change gives the workload broad Kubernetes API access, but it does not by itself make the container runtime `privileged: true`; if you also need host-level Linux privileges, that requires explicit container `securityContext` changes and a compatible GKE cluster mode.
