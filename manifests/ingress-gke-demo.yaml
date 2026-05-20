@@ -7,6 +7,8 @@ metadata:
     kubernetes.io/ingress.class: "gce"
     kubernetes.io/ingress.allow-http: "true"
 spec:
+  # GKE still uses the annotation above; this field helps inventory tools.
+  ingressClassName: gce
   rules:
     - http:
         paths:

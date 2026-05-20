@@ -9,6 +9,8 @@ metadata:
     networking.gke.io/managed-certificates: REPLACE_MANAGED_CERT_NAME
     # REPLACE_GKE_STATIC_IP_ANNOTATION
 spec:
+  # GKE still uses the annotation above; this field helps inventory tools.
+  ingressClassName: gce
   rules:
     - host: REPLACE_PUBLIC_DOMAIN
       http:

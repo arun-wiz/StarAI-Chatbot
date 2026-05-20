@@ -132,6 +132,52 @@ jobs:
               --project "${GCP_PROJECT_ID}"
           fi
 
+      - name: Grant GKE nodes Artifact Registry pull access
+        run: |
+          set -euo pipefail
+
+          project_number="$(gcloud projects describe "${GCP_PROJECT_ID}" --format='value(projectNumber)')"
+          default_node_service_account="${project_number}-compute@developer.gserviceaccount.com"
+
+          raw_node_service_accounts="$(
+            gcloud container clusters describe "${GKE_CLUSTER_NAME}" \
+              --location "${GKE_LOCATION}" \
+              --project "${GCP_PROJECT_ID}" \
+              --format='value(nodePools[].config.serviceAccount)'
+          )"
+
+          if [[ -z "${raw_node_service_accounts//[[:space:];,]/}" ]]; then
+            raw_node_service_accounts="default"
+          fi
+
+          mapfile -t node_service_accounts < <(
+            printf '%s\n' "${raw_node_service_accounts}" |
+              tr $';,\t ' '\n' |
+              sed '/^[[:space:]]*$/d' |
+              sort -u
+          )
+
+          for node_service_account in "${node_service_accounts[@]}"; do
+            node_service_account="${node_service_account##*/}"
+
+            if [[ "${node_service_account}" == "default" ]]; then
+              node_service_account="${default_node_service_account}"
+            fi
+
+            if [[ "${node_service_account}" != *@* ]]; then
+              echo "Could not resolve GKE node service account: ${node_service_account}" >&2
+              exit 1
+            fi
+
+            echo "Granting Artifact Registry read access to GKE node service account: ${node_service_account}"
+            gcloud artifacts repositories add-iam-policy-binding "${GAR_REPOSITORY}" \
+              --location "${GAR_LOCATION}" \
+              --project "${GCP_PROJECT_ID}" \
+              --member "serviceAccount:${node_service_account}" \
+              --role "roles/artifactregistry.reader" \
+              --quiet >/dev/null
+          done
+
       - name: Login to Artifact Registry
         uses: docker/login-action@v4
         with:

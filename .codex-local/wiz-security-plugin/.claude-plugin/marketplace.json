@@ -1,0 +1,21 @@
+{
+  "name": "wiz-security",
+  "owner": {
+    "name": "Wiz",
+    "email": "support@wiz.io"
+  },
+  "plugins": [
+    {
+      "name": "wiz-security",
+      "source": "./wiz-security",
+      "description": "Wiz security skills for code-to-cloud risk analysis, remediation, and MCP setup",
+      "author": {
+        "name": "Wiz",
+        "email": "support@wiz.io"
+      }
+    }
+  ],
+  "metadata": {
+    "description": "Wiz security plugins for Claude Code"
+  }
+}

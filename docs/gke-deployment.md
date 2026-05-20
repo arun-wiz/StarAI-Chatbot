@@ -70,17 +70,19 @@ The `Deploy to GKE` workflow:
 
 1. Authenticates to GCP with Workload Identity Federation.
 2. Ensures the Artifact Registry Docker repository exists, creating it when missing.
-3. Logs in to Artifact Registry.
-4. Builds and pushes the gateway image to GAR.
-5. Fetches kubeconfig for the target GKE cluster.
-6. Creates or updates Mongo/OpenAI Kubernetes secrets.
-7. Applies the namespace, service account, cluster role binding, GKE-specific PVC, Service, Ingress, and optional ManagedCertificate.
-8. Rolls the `chatbot` deployment and waits for ingress IP allocation.
+3. Grants `roles/artifactregistry.reader` on that repository to the GKE node service account so nodes can pull the private gateway image.
+4. Logs in to Artifact Registry.
+5. Builds and pushes the gateway image to GAR.
+6. Fetches kubeconfig for the target GKE cluster.
+7. Creates or updates Mongo/OpenAI Kubernetes secrets.
+8. Applies the namespace, service account, cluster role binding, GKE-specific PVC, Service, Ingress, and optional ManagedCertificate.
+9. Rolls the `chatbot` deployment and waits for ingress IP allocation.
 
 ## Notes
 
 - `demo_mode=true` keeps the ingress HTTP-only and does not require DNS or TLS.
 - `demo_mode=false` expects a DNS name and creates a Google-managed certificate resource.
-- The GCP service account used by GitHub Actions needs Artifact Registry admin-capable permissions to create the repository on first deploy.
+- The GCP service account used by GitHub Actions needs Artifact Registry admin-capable permissions to create the repository on first deploy and set the repository IAM policy. It also needs permission to describe the target GKE cluster so the workflow can discover the node service account.
+- GKE image pulls use the node pool's Google service account, not the Kubernetes service account in `manifests/serviceaccount.yaml`. The workflow resolves GKE's `default` node service account to `<PROJECT_NUMBER>-compute@developer.gserviceaccount.com` and grants it repository-scoped Artifact Registry read access.
 - The GKE deploy path now applies the same `clusterrolebinding.yaml` as EKS so the `chatbot-admin` service account is bound to `cluster-admin`.
 - That RBAC change gives the workload broad Kubernetes API access, but it does not by itself make the container runtime `privileged: true`; if you also need host-level Linux privileges, that requires explicit container `securityContext` changes and a compatible GKE cluster mode.

@@ -1,0 +1,8 @@
+{
+  "name": "wiz-security",
+  "description": "Wiz security skills for code-to-cloud risk analysis, remediation, and MCP setup",
+  "author": {
+    "name": "Wiz",
+    "email": "support@wiz.io"
+  }
+}
