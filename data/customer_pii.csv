@@ -1,0 +1,11 @@
+CUSTOMER_ID,FULL_NAME,EMAIL,PHONE,ADDRESS,SSN,CREDIT_CARD
+CUST-20001,Alex Morgan,alex.morgan@example.com,+1-555-0101,"100 Demo Way, Springfield, IL 62701",900-12-3456,4111111111111111
+CUST-20002,Brianna Lopez,brianna.lopez@example.com,+1-555-0102,"200 Sample St, Aurora, CO 80012",901-23-4567,4012888888881881
+CUST-20003,Charlie Patel,charlie.patel@example.com,+1-555-0103,"300 Example Ave, Madison, WI 53703",902-34-5678,5555555555554444
+CUST-20004,Devon Nakamura,devon.nakamura@example.com,+1-555-0104,"400 Test Blvd, Boise, ID 83702",903-45-6789,5105105105105100
+CUST-20005,Elena Carter,elena.carter@example.com,+1-555-0105,"500 Mockingbird Ln, Salem, OR 97301",904-56-7890,378282246310005
+CUST-20006,Felix O'Sullivan,felix.osullivan@example.com,+1-555-0106,"600 Placeholder Pl, Concord, NH 03301",905-67-8901,6011111111111117
+CUST-20007,Gianna Reyes,gianna.reyes@example.com,+1-555-0107,"700 Synthetic Rd, Frankfort, KY 40601",906-78-9012,4222222222222
+CUST-20008,Hassan Iqbal,hassan.iqbal@example.com,+1-555-0108,"800 Dummy Dr, Pierre, SD 57501",907-89-0123,30569309025904
+CUST-20009,Ingrid Lindberg,ingrid.lindberg@example.com,+1-555-0109,"900 Faux Ct, Helena, MT 59601",908-90-1234,38520000023237
+CUST-20010,Julian Brooks,julian.brooks@example.com,+1-555-0110,"1000 Imitation Way, Olympia, WA 98501",909-01-2345,3530111333300000
