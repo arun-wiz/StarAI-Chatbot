@@ -208,9 +208,9 @@ jobs:
             ./wizcli scan container-image "${seed_image}" --policies=arun-vulnerabilities-policy --tags github_action_run_id=${{ github.run_id }},project=arun-demo --stdout human --sarif-output-file wiz-reports/image-scan-seed.sarif || true
           fi
 
-      - name: Upload Wiz SARIF reports
-        if: ${{ always() && hashFiles('wiz-reports/*.sarif') != '' }}
-        uses: ./.github/actions/upload-wiz-sarif
+      # - name: Upload Wiz SARIF reports
+      #   if: ${{ always() && hashFiles('wiz-reports/*.sarif') != '' }}
+      #   uses: ./.github/actions/upload-wiz-sarif
 
       - name: Prepare EKS config
         uses: ./.github/actions/prepare-eks-config
