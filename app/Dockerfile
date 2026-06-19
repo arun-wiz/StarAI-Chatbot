@@ -14,13 +14,14 @@ RUN echo "REQ_SHA=${REQ_SHA}"
 # install deps and hard-fail if missing
 RUN python -m pip install --no-cache-dir -r /app/requirements.txt \
  && python - <<'PY'
-import pkgutil, sys
-mods = ["fastapi","uvicorn","httpx","pymongo"]
-missing = [m for m in mods if not pkgutil.find_loader(m)]
+import importlib.util, sys
+mods = ["fastapi", "uvicorn", "httpx", "pymongo", "boto3", "google.cloud.storage", "google.genai"]
+missing = [m for m in mods if importlib.util.find_spec(m) is None]
 assert not missing, f"Missing packages: {missing}; sys.path={sys.path}"
 print("deps ok")
 PY
 
+COPY data/ /app/data/
 COPY app/ /app/
 EXPOSE 8080
 CMD ["python","-m","uvicorn","main:app","--host","0.0.0.0","--port","8080"]

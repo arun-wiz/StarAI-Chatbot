@@ -10,7 +10,9 @@ This deploys:
   - `GET /health`
   - `GET /api/services`
   - `POST /chat`
+  - `POST /agent/chat`
   - `POST /api/v1/validate/code` 
+- **Optional AI agent demo** using local data, AWS Bedrock + S3, or GCP Vertex AI + GCS. See [docs/agent-demo.md](docs/agent-demo.md).
 
 MongoDB runs on **your EC2**. The app connects via `MONGO_URI`.
 

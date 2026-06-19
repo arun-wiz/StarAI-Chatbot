@@ -35,6 +35,19 @@ Generic application variables that remain shared across clouds:
 - `AWS_MONGO_HOST` for the EKS workflow
 - `OPENAI_API_KEY`
 
+Optional AI agent demo variables:
+
+- `AGENT_PROVIDER`
+- `AGENT_STORAGE_PROVIDER`
+- `AGENT_PII_BUCKET`
+- `AGENT_DEMO_UNSAFE`
+- `AWS_AGENT_ROLE_ARN`
+- `BEDROCK_MODEL_ID`
+- `BEDROCK_AGENT_ID`
+- `BEDROCK_AGENT_ALIAS_ID`
+
+For the full agent setup, see [agent-demo.md](agent-demo.md).
+
 ## Backward Compatibility
 
 The AWS/EKS scripts still accept the legacy names:

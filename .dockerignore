@@ -1,0 +1,16 @@
+.git
+.github
+.DS_Store
+**/.DS_Store
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.envrc
+.kubeconfig
+gha-kubeconfig-*
+dist/
+build/
+wiz-reports/

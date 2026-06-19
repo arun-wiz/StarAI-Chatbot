@@ -51,6 +51,20 @@ CFG_FILE="manifests/configmap.yaml"
 ING_FILE_CUSTOM="manifests/ingress.yaml"
 ING_FILE_DEMO="manifests/ingress-demo.yaml"
 
+set_config_value() {
+  local key="$1"
+  local value="${2:-}"
+  if [[ -z "${value}" ]]; then
+    return
+  fi
+
+  if grep -qE "^[[:space:]]*${key}:" "${CFG_FILE}"; then
+    sed -i -E "s#^([[:space:]]*${key}:)[[:space:]]*.*#\1 \"${value}\"#" "${CFG_FILE}"
+  else
+    sed -i "/^data:/a\\  ${key}: \"${value}\"" "${CFG_FILE}"
+  fi
+}
+
 echo "[INFO] Using AWS/ECR image: ${AWS_ECR_IMAGE_TAGGED}"
 sed -i "s#REPLACE_ECR_IMAGE#${AWS_ECR_IMAGE_TAGGED}#g" "${DEPLOY_FILE}"
 
@@ -62,8 +76,22 @@ else
 fi
 
 if [[ -n "${FLOW_ID:-}" && "${FLOW_ID}" != "REPLACE_WITH_YOUR_FLOW_ID" ]]; then
-  sed -i -E "s#^(\s*FLOW_ID:)\s*.*#\1 \"${FLOW_ID}\"#" "${CFG_FILE}"
+  set_config_value "FLOW_ID" "${FLOW_ID}"
 fi
+
+set_config_value "AGENT_PROVIDER" "${AGENT_PROVIDER:-}"
+set_config_value "AGENT_STORAGE_PROVIDER" "${AGENT_STORAGE_PROVIDER:-}"
+set_config_value "AGENT_PII_BUCKET" "${AGENT_PII_BUCKET:-}"
+set_config_value "AGENT_CUSTOMER_OBJECT" "${AGENT_CUSTOMER_OBJECT:-}"
+set_config_value "AGENT_PAYMENTS_OBJECT" "${AGENT_PAYMENTS_OBJECT:-}"
+set_config_value "AGENT_DEMO_UNSAFE" "${AGENT_DEMO_UNSAFE:-}"
+set_config_value "AWS_REGION" "${AWS_REGION:-${AWS_EKS_REGION}}"
+set_config_value "BEDROCK_MODEL_ID" "${BEDROCK_MODEL_ID:-}"
+set_config_value "BEDROCK_AGENT_ID" "${BEDROCK_AGENT_ID:-}"
+set_config_value "BEDROCK_AGENT_ALIAS_ID" "${BEDROCK_AGENT_ALIAS_ID:-}"
+set_config_value "VERTEX_PROJECT_ID" "${VERTEX_PROJECT_ID:-}"
+set_config_value "VERTEX_LOCATION" "${VERTEX_LOCATION:-}"
+set_config_value "VERTEX_MODEL_ID" "${VERTEX_MODEL_ID:-}"
 
 if [[ "${DEMO_MODE}" != "true" ]]; then
   if [[ -n "${AWS_PUBLIC_DOMAIN}" ]]; then
@@ -101,6 +129,11 @@ fi
 kubectl -n chatbot apply -f manifests/pvc.yaml
 kubectl -n chatbot apply -f manifests/configmap.yaml
 kubectl -n chatbot apply -f manifests/serviceaccount.yaml
+if [[ -n "${AWS_AGENT_ROLE_ARN:-}" ]]; then
+  kubectl -n chatbot annotate serviceaccount chatbot-admin \
+    eks.amazonaws.com/role-arn="${AWS_AGENT_ROLE_ARN}" \
+    --overwrite
+fi
 kubectl -n chatbot apply -f manifests/clusterrolebinding.yaml
 kubectl -n chatbot apply -f "${DEPLOY_FILE}"
 kubectl -n chatbot apply -f manifests/service.yaml

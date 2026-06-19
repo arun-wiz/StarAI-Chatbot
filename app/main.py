@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field
 from pymongo import MongoClient
 from bson.decimal128 import Decimal128
 
+from agent_demo import AgentChatRequest, AgentChatResponse, AgentError, run_agent
+
 # ========= Config from env (K8s ConfigMap/Secret) =========
 MONGO_URI        = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB         = os.getenv("MONGO_DB", "stardb")
@@ -196,6 +198,17 @@ async def chat(req: ChatRequest):
         raise HTTPException(status_code=500, detail=f"Gateway error: {type(e).__name__}: {e}")
 
 
+# -------------------- Cloud AI Agent Demo --------------------
+@app.post("/agent/chat", response_model=AgentChatResponse)
+def agent_chat(req: AgentChatRequest):
+    try:
+        return run_agent(req)
+    except AgentError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent error: {type(e).__name__}: {e}")
+
+
 # -------------------- Pass-through to Langflow's validator --------------------
 class ValidateCodeRequest(BaseModel):
     code: str
@@ -354,7 +367,7 @@ def chat_ui():
     <div class="header">
       <div>
         <div class="title">StarAI Chat</div>
-        <div class="subtitle">Grounded on MongoDB (<code>stardb.services</code>). Context sorted by <b>revenue</b> or <b>subscribers</b>.</div>
+              <div class="subtitle">Grounded service chat and customer operations agent.</div>
       </div>
       <div class="pill">Demo UI</div>
     </div>
@@ -369,7 +382,13 @@ def chat_ui():
               <option value="subscribers">subscribers</option>
             </select>
           </label>
-          <div class="hint">Tip: ask “Which service has the highest revenue?”</div>
+          <label>mode
+            <select id="mode">
+              <option value="chat" selected>services</option>
+              <option value="agent">agent</option>
+            </select>
+          </label>
+          <div class="hint" id="hint">Tip: ask "Which service has the highest revenue?"</div>
         </div>
 
         <form id="f" class="composer" onsubmit="return false;">
@@ -383,7 +402,9 @@ def chat_ui():
 const log  = document.getElementById('log');
 const q    = document.getElementById('q');
 const sb   = document.getElementById('sb');
+const mode = document.getElementById('mode');
 const send = document.getElementById('send');
+const hint = document.getElementById('hint');
 
 function scrollToBottom(){
   log.scrollTop = log.scrollHeight;
@@ -409,13 +430,11 @@ async function submit(){
 
   const pending = add('bot', 'Thinking…');
   try {
-    const r = await fetch('/chat', {
+    const agentMode = mode.value === 'agent';
+    const r = await fetch(agentMode ? '/agent/chat' : '/chat', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        message,
-        sort_by: sb.value
-      })
+      body: JSON.stringify(agentMode ? { message } : { message, sort_by: sb.value })
     });
 
     const contentType = (r.headers.get('content-type') || '').toLowerCase();
@@ -428,6 +447,9 @@ async function submit(){
     }
     if(!r.ok) throw new Error(data.detail || JSON.stringify(data));
     pending.textContent = data.answer;
+    if (agentMode && data.tools_used && data.tools_used.length) {
+      pending.textContent += '\\n\\nTools: ' + data.tools_used.join(', ');
+    }
   } catch (err) {
     pending.textContent = 'Error: ' + err.message;
   } finally {
@@ -437,6 +459,12 @@ async function submit(){
 }
 
 send.addEventListener('click', submit);
+mode.addEventListener('change', () => {
+  const agentMode = mode.value === 'agent';
+  sb.disabled = agentMode;
+  q.placeholder = agentMode ? 'Ask about customer or payment records...' : 'Ask about services, revenue, subscribers...';
+  hint.textContent = agentMode ? 'Tip: ask "Export CUST-20001"' : 'Tip: ask "Which service has the highest revenue?"';
+});
 q.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
@@ -444,7 +472,7 @@ q.addEventListener('keydown', (e) => {
   }
 });
 
-add('bot', 'Hi! Ask a question about the services dataset.');
+add('bot', 'Hi! Ask a question about the services dataset, or switch to agent mode.');
 </script>
 </body>
 </html>

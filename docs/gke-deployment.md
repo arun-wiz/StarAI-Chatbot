@@ -54,6 +54,19 @@ Repository variables:
 - `FLOW_ID`
 - `GKE_STATIC_IP_NAME` (optional)
 
+Optional AI agent demo variables:
+
+- `AGENT_PROVIDER`
+- `AGENT_STORAGE_PROVIDER`
+- `AGENT_PII_BUCKET`
+- `AGENT_DEMO_UNSAFE`
+- `GCP_AGENT_SERVICE_ACCOUNT`
+- `VERTEX_PROJECT_ID`
+- `VERTEX_LOCATION`
+- `VERTEX_MODEL_ID`
+
+For the full agent setup, see [agent-demo.md](agent-demo.md).
+
 Repository secrets:
 
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`
