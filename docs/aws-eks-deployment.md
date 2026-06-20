@@ -46,6 +46,8 @@ Optional AI agent demo variables:
 - `BEDROCK_AGENT_ID`
 - `BEDROCK_AGENT_ALIAS_ID`
 
+The EKS workflow can now provision the AWS agent demo resources automatically with the `provision_agent_demo_resources` workflow input, which defaults to `true`. In that mode, the workflow bootstraps an AWS S3/DynamoDB Terraform backend if it does not exist, applies `infra/aws/agent-demo`, and passes the generated values directly to the Kubernetes deployment.
+
 For the full agent setup, see [agent-demo.md](agent-demo.md).
 
 ## Backward Compatibility

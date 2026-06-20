@@ -65,6 +65,8 @@ Optional AI agent demo variables:
 - `VERTEX_LOCATION`
 - `VERTEX_MODEL_ID`
 
+The GKE workflow can now provision the GCP agent demo resources automatically with the `provision_agent_demo_resources` workflow input, which defaults to `true`. In that mode, the workflow bootstraps an AWS S3/DynamoDB Terraform backend if it does not exist, applies `infra/gcp/agent-demo`, and passes the generated values directly to the Kubernetes deployment.
+
 For the full agent setup, see [agent-demo.md](agent-demo.md).
 
 Repository secrets:
