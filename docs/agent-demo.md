@@ -23,7 +23,7 @@ Set these as GitHub repository variables or render them into `manifests/configma
 | `AGENT_CUSTOMER_OBJECT` | Customer CSV object key | `customer_pii.csv` |
 | `AGENT_PAYMENTS_OBJECT` | Payments CSV object key | `payment_records.csv` |
 | `AGENT_DEMO_UNSAFE` | `true` returns raw sensitive fields from tools | `false` |
-| `BEDROCK_MODEL_ID` | Bedrock model ID or inference profile ID | `anthropic.claude-3-haiku-20240307-v1:0` |
+| `BEDROCK_MODEL_ID` | Bedrock model ID or inference profile ID | `amazon.nova-micro-v1:0` |
 | `BEDROCK_AGENT_ID` | Managed Bedrock Agent ID | empty |
 | `BEDROCK_AGENT_ALIAS_ID` | Managed Bedrock Agent alias ID | empty |
 | `VERTEX_PROJECT_ID` | GCP project for Vertex AI | empty |
@@ -76,7 +76,7 @@ AWS_AGENT_ROLE_ARN=<created role>
 
 You do not need to define those repository variables when pipeline provisioning is enabled. Use the optional workflow input `bedrock_model_id` if you want to override the default model.
 
-The AWS role used by GitHub Actions must be allowed to create or update S3 buckets, DynamoDB tables, IAM roles/policies, the EKS OIDC provider, and S3 objects. Bedrock model access still needs to be enabled in the AWS account for the selected model.
+The AWS role used by GitHub Actions must be allowed to create or update S3 buckets, DynamoDB tables, IAM roles/policies, the EKS OIDC provider, and S3 objects. Bedrock model access still needs to be enabled in the AWS account for the selected model. If you use Anthropic Claude 3-era model IDs, Bedrock may reject them as legacy unless the account has recent model usage; use `amazon.nova-micro-v1:0`, `amazon.nova-lite-v1:0`, or an enabled inference profile ID for a smoother demo.
 
 The optional Terraform in `infra/aws/agent-demo` is still available if you want to create the same resources manually or show them as IaC in Wiz.
 

@@ -197,7 +197,7 @@ jobs:
               --thumbprint-list "${thumbprint}" >/dev/null
           fi
 
-          model_id="${INPUT_BEDROCK_MODEL_ID:-${BEDROCK_MODEL_ID:-anthropic.claude-3-haiku-20240307-v1:0}}"
+          model_id="${INPUT_BEDROCK_MODEL_ID:-${BEDROCK_MODEL_ID:-amazon.nova-micro-v1:0}}"
           role_name="starai-agent-pii-demo"
           policy_arn="arn:aws:iam::${account_id}:policy/starai-agent-pii-demo-access"
 

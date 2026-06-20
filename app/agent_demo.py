@@ -90,9 +90,7 @@ class AgentSettings:
             customer_object=os.getenv("AGENT_CUSTOMER_OBJECT", "customer_pii.csv"),
             payments_object=os.getenv("AGENT_PAYMENTS_OBJECT", "payment_records.csv"),
             aws_region=os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1")),
-            bedrock_model_id=os.getenv(
-                "BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0"
-            ),
+            bedrock_model_id=os.getenv("BEDROCK_MODEL_ID", "amazon.nova-micro-v1:0"),
             bedrock_agent_id=os.getenv("BEDROCK_AGENT_ID", ""),
             bedrock_agent_alias_id=os.getenv("BEDROCK_AGENT_ALIAS_ID", ""),
             vertex_project=os.getenv(
