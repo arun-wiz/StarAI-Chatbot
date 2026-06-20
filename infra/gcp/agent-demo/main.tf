@@ -1,5 +1,5 @@
 terraform {
-  backend "s3" {}
+  backend "gcs" {}
 
   required_version = ">= 1.5.0"
 

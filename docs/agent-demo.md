@@ -62,6 +62,8 @@ Terraform creates or updates:
 - An IRSA role trusted by the `chatbot/chatbot-admin` Kubernetes service account.
 - An intentionally broad demo policy with `s3:*` on the PII bucket and Bedrock invoke permissions.
 
+This path does not create a managed resource in the Bedrock Agents console. `AGENT_PROVIDER=bedrock` uses the app's `/agent/chat` route to call the Bedrock Runtime Converse API directly, while the gateway performs the S3-backed tool calls. The created AWS resources are the S3 bucket, IAM role, IAM policy, and S3 objects.
+
 It then deploys the app with:
 
 ```text
@@ -116,13 +118,11 @@ In that mode, `/agent/chat` forwards to Bedrock Agent Runtime instead of using t
 
 The GKE workflow now provisions the GCP backing resources with Terraform when the workflow input `provision_agent_demo_resources` is `true` (default).
 
-The GKE workflow also uses the AWS S3/DynamoDB Terraform backend. Before running Terraform, it checks for the backend resources and creates them when missing:
+The GKE workflow uses a GCS Terraform backend. Before running Terraform, it checks for the backend bucket and creates it when missing:
 
-- S3 state bucket: `starai-terraform-state-<aws-account-id>-<backend-region>`
-- DynamoDB lock table: `starai-terraform-locks`
+- GCS state bucket: `starai-tf-state-<project-number>-<location>`
 
-This means the GKE workflow needs AWS credentials for the Terraform backend in addition to GCP credentials for the resources.
-Set `AWS_TERRAFORM_BACKEND_REGION` if you want the backend in a specific AWS region; otherwise the GKE workflow uses `AWS_REGION` or falls back to `us-east-1`.
+The GCS state bucket has versioning, uniform bucket-level access, and public-access prevention enabled. The GKE workflow no longer needs AWS credentials for Terraform state.
 
 Terraform creates or updates:
 
@@ -144,7 +144,7 @@ GCP_AGENT_SERVICE_ACCOUNT=<created service account>
 
 You do not need to define those repository variables when pipeline provisioning is enabled. Use the optional workflow input `vertex_model_id` if you want to override the default model.
 
-The GCP service account used by GitHub Actions must be allowed to enable services, create or update GCS buckets, create service accounts, set IAM policies, and use Vertex AI. The AWS role used by GitHub Actions must be allowed to create or update the S3/DynamoDB Terraform backend. The target GKE cluster must have Workload Identity enabled for the pod to assume the created Google service account.
+The GCP service account used by GitHub Actions must be allowed to enable services, create or update GCS buckets, create service accounts, set IAM policies, and use Vertex AI. The target GKE cluster must have Workload Identity enabled for the pod to assume the created Google service account.
 
 The optional Terraform in `infra/gcp/agent-demo` is still available if you want to create the same resources manually or show them as IaC in Wiz.
 
