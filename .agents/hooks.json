@@ -2,7 +2,7 @@
     "codemender-security-gate": {
         "PreToolUse": [
             {
-                "matcher": "git commit*",
+                "matcher": "git push*",
                 "hooks": [
                     {
                         "type": "command",
